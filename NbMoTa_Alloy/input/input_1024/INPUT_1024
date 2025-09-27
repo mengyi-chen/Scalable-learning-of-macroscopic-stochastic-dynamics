@@ -1,0 +1,17 @@
+model_weights                   ../utils/weights.npy
+number_of_atoms                 1024
+dimensions_start_line           6
+dimensions_end_line             8
+coordinates_start_line          10
+coordinates_end_line            1033
+image_cutoff                    7.5
+first_nearest_neighbor_cutoff   3
+voxel_size                      1.62
+initial_step                    1
+number_of_steps_updating_vacancy 20000000
+random_vacancy_generation_flag  1
+vacancy_id                      1
+vacancy_update_flag             0
+units                           s
+log_file                        log.csv
+chemical_order_file             chemical_order.csv

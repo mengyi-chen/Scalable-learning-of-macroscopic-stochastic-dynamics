@@ -1,0 +1,148 @@
+import numba
+import random
+import numpy as np
+from numba import prange
+import time, os 
+
+@numba.jit(nopython=True)
+def _glauber(spin, L, beta, h=0):
+    glauber_time = 0.0
+    rates = np.empty((L, L))
+
+    for x in range(L):
+        for y in range(L):
+            s = spin[x, y]
+            neighbors = (
+                spin[(x - 1) % L, y] +
+                spin[(x + 1) % L, y] +
+                spin[x, (y - 1) % L] +
+                spin[x, (y + 1) % L]
+            )
+            dH = 2 * s * neighbors + 2 * h * s
+            rates[x, y] = 1.0 / (1.0 + np.exp(beta * dH))
+
+    for _ in range(L * L):
+        rates_flat = rates.ravel()
+        total_rate = np.sum(rates_flat)
+        prob = rates_flat / total_rate
+        cum_probs = np.cumsum(prob)
+        
+        r = np.random.rand()
+        selected_flat_idx = np.searchsorted(cum_probs, r)
+        selected_flat_idx = min(selected_flat_idx, L * L - 1)
+        x, y = divmod(selected_flat_idx, L)
+
+        spin[x, y] *= -1
+
+        jumping_time = -np.log(np.random.rand()) / total_rate
+        glauber_time += jumping_time
+
+        for dx, dy in [(0,0), (-1,0), (1,0), (0,-1), (0,1)]:
+            i = (x + dx) % L
+            j = (y + dy) % L
+            s = spin[i, j]
+            neighbors = (
+                spin[(i - 1) % L, j] +
+                spin[(i + 1) % L, j] +
+                spin[i, (j - 1) % L] +
+                spin[i, (j + 1) % L]
+            )
+            dH = 2 * s * neighbors + 2 * h * s
+            rates[i, j] = 1.0 / (1.0 + np.exp(beta * dH))
+
+    return spin, glauber_time
+
+
+class Glauber2DIsing:
+    def __init__(self, args):
+        self.L = args.L
+        self.steps = args.steps
+        self.eqstep = args.steps // 2
+        self.mcstep = args.steps // 2
+        self.area = self.L ** 2
+        self.mag = args.mag
+
+    def _init_spin(self):
+        
+        if self.mag == None:
+            initial_mag = 2 * np.random.rand() - 1
+            num_up = int((1 + initial_mag) * self.area / 2)
+        else:
+            num_up = int((1 + self.mag) * self.area / 2)
+            
+        # Create initial spin configuration
+        num_down = self.area - num_up
+        spins = np.concatenate([np.ones(num_up), -np.ones(num_down)])
+        np.random.shuffle(spins)
+
+        return spins.reshape(self.L, self.L)  # 2D reshape
+
+    # Calculate energy using neighbors
+    def _calc_energy(self, spin):
+        R = np.roll(spin, 1, axis=0) + np.roll(spin, -1, axis=0) \
+            + np.roll(spin, 1, axis=1) + np.roll(spin, -1, axis=1)
+        Hamiltonian = np.sum(-R * spin) / (2 * self.area) - self.h * np.sum(spin) / self.area
+        return Hamiltonian
+    
+    def _calc_magnetization(self, spin):
+        return np.sum(spin) / self.area
+
+    def _compute_domain_wall_density_2d(self, spin):
+        """
+        Compute domain wall density in a 2D Ising model configuration.
+        
+        Args:
+            spin (torch.Tensor): 2D tensor of shape [L, L] with values -1 or +1.
+            
+        Returns:
+            float: domain wall density
+        """
+        # Periodic shifts in x, y, z
+        shift_x = np.roll(spin, 1, axis=0)
+        shift_y = np.roll(spin, 1, axis=1)
+
+        # Count domain walls
+        dw_x = 0.5 * (1 - spin * shift_x)
+        dw_y = 0.5 * (1 - spin * shift_y)
+
+        total_dw = dw_x + dw_y
+        rho_dw = total_dw.sum() / (2 * self.area)
+
+        return rho_dw.item()
+
+    
+    def simulate(self, beta, h=0):
+        self.h = h
+        E1, M1, E2, M2 = 0, 0, 0, 0
+        M1_list = []
+        config_list = []
+        kmc_time = [0]
+        spin = self._init_spin()
+
+        for _ in range(self.eqstep):            
+            M = self._calc_magnetization(spin)
+            M1_list.append(M)
+            config_list.append(spin.copy())
+
+            _, delta_t = _glauber(spin, self.L, beta, h=self.h)
+            kmc_time.append(kmc_time[-1] + delta_t)
+            
+        # Monte Carlo steps
+        for _ in range(self.mcstep):
+            
+            E = self._calc_energy(spin)
+            M = self._calc_magnetization(spin)
+            M1_list.append(M)
+            config_list.append(spin.copy())
+
+            M = np.abs(M)
+            E1 += E / self.mcstep
+            M1 += M / self.mcstep
+            E2 += E ** 2 / self.mcstep
+            M2 += M ** 2 / self.mcstep
+            
+            _, delta_t = _glauber(spin, self.L, beta, h=self.h)
+            kmc_time.append(kmc_time[-1] + delta_t)
+
+        config_list = np.array(config_list)
+        return E1,  M1, (E2 - E1 * E1) * beta ** 2 * self.area, (M2 - M1 * M1) * beta * self.area, M1_list, config_list, kmc_time[:-1]
