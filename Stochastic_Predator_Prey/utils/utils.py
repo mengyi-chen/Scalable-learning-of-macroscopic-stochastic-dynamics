@@ -16,6 +16,7 @@ def set_seed(seed):
 
 
 def rhs(u, v, a=3, b=0.4):
+    """Right-hand side of the stochastic predator-prey equations."""
     # u: [B, Nx]
     # v: [B, Nx]
     f_u = u * (1 - u - v) 
@@ -106,110 +107,3 @@ class NetPartial(nn.Module):
 
         return x0_prime
 
-
-
-class Autoencoder(nn.Module):
-    def __init__(self, grid_size, hidden_dim, n_parts=10):
-        super(Autoencoder, self).__init__()
-        self.input_dim = grid_size 
-        self.hidden_dim = hidden_dim
-        self.n_parts = n_parts
-        assert grid_size % n_parts == 0, "Grid size must be divisible by number of parts"
-        self.part_size = grid_size // n_parts
-
-        # Encoder
-        self.encoder_net = nn.Sequential(
-            nn.Linear(self.part_size, 32),
-            nn.ReLU(),
-            nn.Linear(32, 32),
-            nn.ReLU(),
-            nn.Linear(32, self.hidden_dim // 2),
-        )
-
-        # Decoder
-        self.decoder_net = nn.Sequential(
-            nn.Linear(self.hidden_dim + 2, 32),
-            nn.ReLU(),
-            nn.Linear(32, 32),
-            nn.ReLU(),
-            nn.Linear(32, self.input_dim * 2),
-        )
-        self.register_buffer('mean', torch.zeros(2 + hidden_dim), persistent=False)
-        self.register_buffer('std', torch.ones(2 + hidden_dim), persistent=False)
-
-        self.apply(self._init_weights)
-
-    def _init_weights(self, module):
-        if isinstance(module, nn.Linear):
-            nn.init.xavier_uniform_(module.weight)
-        
-    def cal_macro(self, x):
-        # x: [B, 2, grid_size]
-        z_macro = torch.mean(x, -1)
-        return z_macro
-
-    def encoder(self, x):
-        # x shape: [B, 2, n_dim]
-        z_macro = self.cal_macro(x)  # [B, 2] 
-
-        x = x.reshape(-1, 2, self.n_parts, self.part_size) # [B, 2, n_parts, part_size]
-        # x = x.permute(0, 2, 1, 3).flatten(2, 3) # [B, n_parts, 2 * part_size]
-        z_val = self.encoder_net(x)  # [B, 2, n_parts, hidden_dim // 2]
-        z_val = torch.mean(z_val, dim=2).flatten(1, 2) # [b, 2, hidden_dim // 2]
-
-        z = torch.cat([z_macro, z_val], -1)  # [B, hidden_dim + 2]
-        return z
-
-    def encode(self, x0, x1, partial=False, index=None):
-
-        if partial == False:
-            z0 = self.encoder(x0)  # [B, macro_dim + hidden_dim]
-            z1 = self.encoder(x1) # [B, macro_dim + hidden_dim]
-
-            z0 = (z0 - self.mean) / (self.std) # [B, macro_dim + hidden_dim]
-            z1 = (z1 - self.mean) / (self.std) # [B, macro_dim + hidden_dim]
-            return z0, z1
-        
-        if partial == True:
-            assert index is not None, "index must be provided when partial is True"
-            assert index.shape[0] == x0.shape[0], "index must have the same batch size as x"
-
-            z0 = self.encoder(x0)
-
-            x0 = x0.reshape(-1, 2, self.n_parts, self.part_size)
-            # x0 = x0.permute(0, 2, 1, 3) 
-            batch_indices = torch.arange(x0.shape[0], device=x0.device)
-
-            x0_partial = x0[batch_indices, :, index] # [B, 2, part_size]
-            x1_partial = x1 # [B, 2, part_size]
-        
-            z0_macro_partial = self.cal_macro(x0_partial) # [B, 2]
-            z1_macro_partial = self.cal_macro(x1_partial) # [B, 2] 
-            z0_hat_partial = self.encoder_net(x0_partial).flatten(1, 2) # [B, hidden_dim]
-            z1_hat_partial = self.encoder_net(x1_partial).flatten(1, 2) # [B, hidden_dim]
-
-            z0_partial = torch.cat([z0_macro_partial, z0_hat_partial], -1) # [B, macro_dim + hidden_dim]
-            z1_partial = torch.cat([z1_macro_partial, z1_hat_partial], -1) # [B, macro_dim + hidden_dim]
-
-            z1_hat = z0 + (z1_partial - z0_partial) # [B, macro_dim + hidden_dim]
-
-            z0 = (z0 - self.mean) / (self.std)
-            z1_hat = (z1_hat - self.mean) / (self.std) # [B, macro_dim + hidden_dim]
-
-            z0_naive = z0
-            z1_naive = z1_partial 
-            z1_naive = (z1_naive - self.mean) / (self.std)
-
-            return z0, z1_hat, z0_naive, z1_naive
-        
-
-    def decoder(self, z):
-        x = self.decoder_net(z)
-        x = x.view(-1, 2, self.input_dim)
-        return x
-
-    def forward(self, x):
-        z = self.encoder(x)
-        x = self.decoder(z)
-        return x
-        

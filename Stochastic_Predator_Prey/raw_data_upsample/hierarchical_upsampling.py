@@ -5,6 +5,15 @@ import os
 import argparse
 from tqdm import tqdm
 
+parser = argparse.ArgumentParser(description='Upscale PDE trajectory data')
+parser.add_argument('--input', type=str, default='../raw_data/X0_grid_100.pt', help='Input file path')
+parser.add_argument('--output', type=str, default='X0_train_grid_200_upscaled.pt', help='Output file path')
+parser.add_argument('--scale_factor', type=int, default=2, help='Scale factor for upscaling')
+parser.add_argument('--method', type=str, default='linear', choices=['cubic_spline', 'linear'], help='Interpolation method')
+parser.add_argument('--visualize', action='store_true', help='Create comparison visualization')
+args = parser.parse_args()
+print(args)
+
 def upscale_trajectories(input_file, output_file, scale_factor=2, method='cubic_spline'):
     """
     Upscale PDE trajectory data using interpolation.
@@ -14,10 +23,13 @@ def upscale_trajectories(input_file, output_file, scale_factor=2, method='cubic_
         output_file (str): Path to save upscaled trajectories
         scale_factor (int): Factor by which to increase spatial resolution
         method (str): Interpolation method ('cubic_spline', 'linear')
+    
+    Returns:
+        upscaled_data: Tensor with upscaled trajectories
     """
     
-    print(f"Loading data from {input_file}...")
     # Load the coarse scale data
+    print(f"Loading data from {input_file}...")
     data = torch.load(input_file, weights_only=False, map_location=torch.device('cpu'))
     
     n_traj, n_time, n_vars, n_grid_coarse = data.shape
@@ -103,23 +115,18 @@ def visualize_comparison(original_data, upscaled_data, traj_idx=0, time_idx=0, s
     
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
     
-    # Plot prey (u) - variable 0
-    
-    ax1.plot(x_coarse, original_data[traj_idx, time_idx, 0, :].numpy(), 'o-', 
-             label='Original (50 points)', markersize=4)
-    ax1.plot(x_fine, upscaled_data[traj_idx, time_idx, 0, :].numpy(), '-', 
-             label='Upscaled (100 points)', alpha=0.8)
+    # Plot prey (u)
+    ax1.plot(x_coarse, original_data[traj_idx, time_idx, 0, :].numpy(), 'o-', label=f'Original ({n_grid_coarse} points)', markersize=4)
+    ax1.plot(x_fine, upscaled_data[traj_idx, time_idx, 0, :].numpy(), '-', label=f'Upscaled ({n_grid_fine} points)', alpha=0.8)
     ax1.set_title('Prey Population (u)')
     ax1.set_xlabel('Spatial coordinate')
     ax1.set_ylabel('Population density')
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     
-    # Plot predator (v) - variable 1
-    ax2.plot(x_coarse, original_data[traj_idx, time_idx, 1, :].numpy(), 'o-', 
-             label='Original (50 points)', markersize=4)
-    ax2.plot(x_fine, upscaled_data[traj_idx, time_idx, 1, :].numpy(), '-', 
-             label='Upscaled (100 points)', alpha=0.8)
+    # Plot predator (v)
+    ax2.plot(x_coarse, original_data[traj_idx, time_idx, 1, :].numpy(), 'o-', label=f'Original ({n_grid_coarse} points)', markersize=4)
+    ax2.plot(x_fine, upscaled_data[traj_idx, time_idx, 1, :].numpy(), '-', label=f'Upscaled ({n_grid_fine} points)', alpha=0.8)
     ax2.set_title('Predator Population (v)')
     ax2.set_xlabel('Spatial coordinate')
     ax2.set_ylabel('Population density')
@@ -127,46 +134,16 @@ def visualize_comparison(original_data, upscaled_data, traj_idx=0, time_idx=0, s
     ax2.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"Comparison plot saved to {save_path}")
     
     plt.show()
 
-def main():
-    parser = argparse.ArgumentParser(description='Upscale PDE trajectory data')
-    parser.add_argument('--input', type=str, default='../raw_data/X0_grid_100.pt',
-                       help='Input file path')
-    parser.add_argument('--output', type=str, default='X0_train_grid_200_upscaled.pt',
-                       help='Output file path')
-    parser.add_argument('--scale_factor', type=int, default=2,
-                       help='Scale factor for upscaling')
-    parser.add_argument('--method', type=str, default='linear',
-                       choices=['cubic_spline', 'linear'],
-                       help='Interpolation method')
-    parser.add_argument('--visualize', action='store_true',
-                       help='Create comparison visualization')
-    
-    args = parser.parse_args()
-    
-    # Perform upscaling
-    upscaled_data = upscale_trajectories(
-        args.input, 
-        args.output, 
-        args.scale_factor, 
-        args.method
-    )
-    
-    # Optional visualization
-    if args.visualize:
-        print("Creating visualization...")
-        original_data = torch.load(args.input, weights_only=False, map_location=torch.device('cpu'))
-        visualize_comparison(
-            original_data, 
-            upscaled_data, 
-            save_path='upscaling_comparison.png'
-        )
-
 if __name__ == "__main__":
-    main()
+    # Perform upscaling
+    upscaled_data = upscale_trajectories(args.input, args.output, args.scale_factor, args.method)
+
+    print("Creating visualization...")
+    original_data = torch.load(args.input, weights_only=False, map_location=torch.device('cpu'))
+    visualize_comparison(original_data, upscaled_data, save_path='upscaling_comparison.png')

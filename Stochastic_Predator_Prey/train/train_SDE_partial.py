@@ -9,7 +9,7 @@ import logging
 import sys
 import torch.nn as nn
 sys.path.append('..')
-from utils.onsagernet_pytorch import S_OnsagerNet, SDE_Net
+from utils.models import SDE_Net
 import pickle
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
@@ -22,26 +22,24 @@ torch.set_default_dtype(torch.float32)
 
 
 # General arguments
-parser = argparse.ArgumentParser(description='Stochastic OnsagerNet')
-parser.add_argument('--gpu_idx', default=5, type=int)
-parser.add_argument('--seed', default=42, type=int)
-parser.add_argument('--Task_NAME', default='stochastic_Predator_Prey', type=str)
-parser.add_argument('--hidden_dim', default=4, type=int)
-parser.add_argument('--L', default=200, type=int)
-parser.add_argument('--box_L', default=40, type=int)
-parser.add_argument('--dt', default=0.1, type=float)
-parser.add_argument('--n_parts', default=5, type=int, help='Number of parts to divide the grid into')
+parser = argparse.ArgumentParser(description='Identify macroscopic dynamics')
+parser.add_argument('--gpu_idx', default=5, type=int, help='GPU index')
+parser.add_argument('--seed', default=42, type=int, help='Random seed')
+parser.add_argument('--hidden_dim', default=4, type=int, help='latent dimension')
+parser.add_argument('--L', default=200, type=int, help='number of grid points for the large system')
+parser.add_argument('--box_L', default=40, type=int, help='box size for local averaging')
+parser.add_argument('--dt', default=0.1, type=float, help='time step')
+parser.add_argument('--n_patch', default=5, type=int, help='Number of parts to divide the grid into')
 # training parameters
-parser.add_argument('--train_bs', default=1024, type=int)
-parser.add_argument('--val_bs', default=1024, type=int)
-parser.add_argument('--num_epoch', default=100, type=int)
-parser.add_argument('--patience', default=5, type=int)
-parser.add_argument('--lr', default=0.001, type=float)
-parser.add_argument('--mode', default='arbitrary', type=str)
-parser.add_argument('--epsilon', default=1e-5, type=float)
-parser.add_argument('--coeff', default=None, type=float)
-parser.add_argument('--method', default='ours', type=str, choices=['ours', 'naive'])
-parser.add_argument('--model_name', default='SDE_Net', type=str, choices=['SDE_Net', 'S_OnsagerNet'])
+parser.add_argument('--train_bs', default=1024, type=int, help='batch size for training')
+parser.add_argument('--val_bs', default=1024, type=int, help='batch size for validation')
+parser.add_argument('--num_epoch', default=100, type=int, help='number of epochs')
+parser.add_argument('--patience', default=5, type=int, help='patience for lr scheduler')
+parser.add_argument('--lr', default=0.001, type=float, help='learning rate')
+parser.add_argument('--mode', default='arbitrary', type=str, choices=['arbitrary', 'diagonal', 'constant_diagonal', 'constant'], help='structure of diffusion term')
+parser.add_argument('--epsilon', default=1e-5, type=float, help='small constant for numerical stability')
+parser.add_argument('--coeff', default=None, type=float, help='coefficient for the diffusion term')
+parser.add_argument('--method', default='ours', type=str, choices=['ours', 'naive'], help='method for training')
 args = parser.parse_args()
     
 class Trainer():
@@ -51,7 +49,7 @@ class Trainer():
         start_message = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Initializing."
         print(start_message)
         date = datetime.now().strftime('%Y_%m_%d_%H:%M:%S')
-        self.d = args.n_parts
+        self.d = args.n_patch
         if args.coeff is not None:
             self.coeff = args.coeff
         else:
@@ -62,7 +60,7 @@ class Trainer():
             else:
                 raise ValueError(f"Method {args.method} is not supported.")
         
-        self.folder = os.path.join('../checkpoints',f'SDE_{args.model_name}_method_{args.method}_coeff_{self.coeff}_seed_{args.seed}')
+        self.folder = os.path.join('../checkpoints',f'SDE_method_{args.method}_coeff_{self.coeff}_seed_{args.seed}')
         if not os.path.exists(self.folder):
             os.mkdir(self.folder) 
                         
@@ -85,13 +83,7 @@ class Trainer():
         self.dt = torch.tensor(args.dt, device=self.device)
         self.load_data()
 
-        if args.model_name == 'S_OnsagerNet':
-            self.model = S_OnsagerNet(self.dt, mode=args.mode, n_dim=args.hidden_dim, epsilon=args.epsilon).to(self.device)
-        elif args.model_name == 'SDE_Net':
-            self.model = SDE_Net(self.dt, mode=args.mode, n_dim=args.hidden_dim, epsilon=args.epsilon).to(self.device)
-        else:
-            raise ValueError(f"Model {args.model_name} is not supported.")
-
+        self.model = SDE_Net(self.dt, mode=args.mode, n_dim=args.hidden_dim, epsilon=args.epsilon).to(self.device)
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=args.lr, amsgrad=True, weight_decay=0)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min',factor=0.5,threshold_mode='rel',patience=args.patience,cooldown=0,min_lr=5e-6)
         
@@ -136,7 +128,7 @@ class Trainer():
         dataset_val = TensorDataset(z0_val, z1_val)
         self.dataloader_val = DataLoader(dataset_val, batch_size=args.val_bs, shuffle=True)
 
-        # Plot the true trajectories
+        # ========= visualize =========
         fig = plt.figure(figsize=(8*3, 6))
         plot = self.z0_val.detach().cpu().numpy() # [n_tra, length_per_tra, hidden_dim]
         t = np.arange(plot.shape[1]) * self.dt.item()
@@ -155,8 +147,6 @@ class Trainer():
         plot_name = os.path.join(self.folder,f'true.png') 
         plt.savefig(plot_name)
         plt.close()
-
-   
         
     def train(self):
         start_message = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Training started."

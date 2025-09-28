@@ -13,22 +13,22 @@ import random
 from tqdm import tqdm
 import warnings
 warnings.filterwarnings("ignore")
-from utils.utils import Autoencoder, set_seed
+from utils.utils import set_seed
+from utils.models import Autoencoder
 torch.set_default_dtype(torch.float32)
 set_seed(42)
 
 # General arguments
 parser = argparse.ArgumentParser(description='Autoencoder')
-parser.add_argument('--macro_dim', default=2, type=int)
-parser.add_argument('--hidden_dim', default=2, type=int)
-parser.add_argument('--cuda_device', default=2, type=int)
-parser.add_argument('--input_dim', default=200, type=int)
-parser.add_argument('--train_bs', default=256, type=int)
-parser.add_argument('--num_epoch', default=10, type=int)
-parser.add_argument('--n_parts', default=5, type=int, help='Number of parts to divide the grid into')
-parser.add_argument('--ckpt_path', default='../checkpoints', type=str)
+parser.add_argument('--macro_dim', default=2, type=int, help='Dimension of macroscopic variables')
+parser.add_argument('--closure_dim', default=2, type=int, help='Dimension of closure variables')
+parser.add_argument('--cuda_device', default=2, type=int, help='GPU index')
+parser.add_argument('--input_dim', default=200, type=int, help='Input dimension')
+parser.add_argument('--train_bs', default=256, type=int, help='Batch size for training')
+parser.add_argument('--num_epoch', default=10, type=int, help='Number of training epochs')
+parser.add_argument('--n_patch', default=5, type=int, help='Number of parts to divide the grid into')
+parser.add_argument('--ckpt_path', default='../checkpoints', type=str, help='Path to save checkpoints')
 args = parser.parse_args()
-
 
 
 if __name__ == "__main__":
@@ -36,10 +36,10 @@ if __name__ == "__main__":
     device = torch.device(f'cuda:{args.cuda_device}')
     os.makedirs(args.ckpt_path, exist_ok=True)
 
-    # Load training data
-    x0_train = torch.load('../raw_data_upscale/X0_train_grid_200_upscaled.pt', weights_only=True, map_location=device)
-    idx_train_partial = torch.load('../raw_data_upscale/idx_train_partial.pt', map_location=device)
-    x1_train_partial = torch.load('../raw_data_upscale/X1_train_partial.pt', weights_only=True, map_location=device)
+    # ============ Load data ==============
+    x0_train = torch.load('../raw_data_upsample/X0_train_grid_200_upscaled.pt', weights_only=True, map_location=device) # x_t: 
+    idx_train_partial = torch.load('../raw_data_upsample/idx_train_partial.pt', map_location=device) # index of partial labels $\mathcal{I}$
+    x1_train_partial = torch.load('../raw_data_upsample/X1_train_partial.pt', weights_only=True, map_location=device) # x_{t+dt, I}
 
     print('x0 shape:', x0_train.shape)
     print('x1_partial shape:', x1_train_partial.shape)
@@ -53,12 +53,12 @@ if __name__ == "__main__":
     date = datetime.now().strftime('%Y_%m_%d_%H:%M:%S')
     
     # Macroscopic dimension = the dimension of macroscopic variables + the dimension of closuere variables
-    folder = os.path.join(args.ckpt_path,f'AE_dim_{args.hidden_dim+args.macro_dim}_{date}')
+    folder = os.path.join(args.ckpt_path,f'AE_dim_{args.closure_dim+args.macro_dim}_{date}')
     if not os.path.exists(folder):
         os.mkdir(folder) 
 
-    # ============ training ==============
-    AE = Autoencoder(args.input_dim, args.hidden_dim, args.n_parts).to(device)
+    # ============ Begin training the autoencoder ==============
+    AE = Autoencoder(args.input_dim, args.closure_dim, args.n_patch).to(device)
     optimizer = torch.optim.Adam(AE.parameters(), lr=0.0001, weight_decay=1e-4, betas=(0.9, 0.95))
     metric = nn.MSELoss()
 
@@ -68,7 +68,6 @@ if __name__ == "__main__":
     dataset_val = data.TensorDataset(x0_val.flatten(0, 1))
     dataloader_val = DataLoader(dataset_val, batch_size=args.train_bs, shuffle=False)
 
-    # Begin training the autoencoder 
     for epoch in range(args.num_epoch):
         AE.eval()
         val_mse = []
@@ -115,10 +114,12 @@ if __name__ == "__main__":
         x1_partial = x1_train_partial[i] # [B, 2, 10]
         idx_partial = idx_train_partial[i] # [B]
 
+        # data for our method 
         z0, z1_hat, z0_naive, z1_naive = AE.encode(x0, x1_partial, partial=True, index=idx_partial)
         z0_train.append(z0)
         z1_train_partial.append(z1_hat)
 
+        # data for the baseline method (naive)
         z0_train_naive.append(z0_naive)
         z1_train_naive.append(z1_naive)
     
@@ -148,7 +149,8 @@ if __name__ == "__main__":
     print('z0_train_naive shape:', z0_train_naive.shape)
     print('z1_train_naive shape:', z1_train_naive.shape)
 
-
+    if not os.path.exists('../data'):
+        os.mkdir('../data')
     torch.save(z0_train, '../data/z0_train.pt')
     torch.save(z1_train_partial, '../data/z1_train_partial.pt')
     torch.save(z0_train_naive, '../data/z0_train_naive.pt')

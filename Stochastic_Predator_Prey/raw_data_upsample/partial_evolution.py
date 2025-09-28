@@ -22,7 +22,7 @@ def args_parser():
     parser.add_argument('--noise_level', default=params['noise_level'], type=float, help='noise level')
     parser.add_argument('--solver', default=params['solver'], type=str, choices=['euler', 'RK4'])
     parser.add_argument('--seed', default=params['seed'], type=int, help='Random seed')
-    parser.add_argument('--n_parts', default=params['n_parts'], type=int, help='Number of parts to divide the grid into')
+    parser.add_argument('--n_patch', default=params['n_patch'], type=int, help='Number of parts to divide the grid into')
     parser.add_argument('--gpu_idx', default=1, type=int, help='GPU index')
     args = parser.parse_args()
     return args
@@ -45,18 +45,18 @@ if __name__ == "__main__":
     # ========= generate X1_partial data =========
     X1_partial = []
     idx_train_partial = []
-    assert X0.shape[-1] % args.n_parts == 0, "Grid size must be divisible by n_parts"
-    part_size = X0.shape[-1] // args.n_parts
+    assert X0.shape[-1] % args.n_patch == 0, "Grid size must be divisible by n_patch"
+    part_size = X0.shape[-1] // args.n_patch
     for i in tqdm(range(X0.shape[0])):
         x0 = X0[i].clone() # [B, 2, nx]    
         B = x0.shape[0]
         
-        # Create full ghost grid first: [B, 2, nx] -> [B, 2, nx + 2*n_parts]
+        # Create full ghost grid first: [B, 2, nx] -> [B, 2, nx + 2*n_patch]
         # Each part gets one ghost cell on each side
-        x0_ghost = torch.zeros(B, 2, x0.shape[-1] + 2 * args.n_parts, device=x0.device)
+        x0_ghost = torch.zeros(B, 2, x0.shape[-1] + 2 * args.n_patch, device=x0.device)
         
         # Fill the ghost grid part by part with ghost cells
-        for part_idx in range(args.n_parts):
+        for part_idx in range(args.n_patch):
             start_orig = part_idx * part_size
             end_orig = (part_idx + 1) * part_size
             start_ghost = part_idx * (part_size + 2) + 1  # +1 for left ghost cell
@@ -74,18 +74,18 @@ if __name__ == "__main__":
                 x0_ghost[:, :, start_ghost - 1] = x0[:, :, start_orig - 1]
             
             # Add right ghost cell
-            if part_idx == args.n_parts - 1:
+            if part_idx == args.n_patch - 1:
                 # Last part: use Neumann boundary (replicate last value)
                 x0_ghost[:, :, end_ghost] = x0[:, :, end_orig - 1]
             else:
                 # Use first value from next part
                 x0_ghost[:, :, end_ghost] = x0[:, :, end_orig]
         
-        # Reshape to [B, 2, n_parts, part_size + 2] for easy slicing
-        x0_ghost = x0_ghost.view(B, 2, args.n_parts, part_size + 2)
+        # Reshape to [B, 2, n_patch, part_size + 2] for easy slicing
+        x0_ghost = x0_ghost.view(B, 2, args.n_patch, part_size + 2)
         
         # Randomly select which part to use for each batch
-        idx_partial = torch.randint(0, args.n_parts, (B,), device=x0.device)
+        idx_partial = torch.randint(0, args.n_patch, (B,), device=x0.device)
 
         # Extract the selected partial ghost data
         x0_partial_ghost = x0_ghost[torch.arange(B), :, idx_partial]  # [B, 2, part_size + 2]
@@ -97,7 +97,7 @@ if __name__ == "__main__":
 
         idx_train_partial.append(idx_partial)
         X1_partial.append(x1_partial)
-        
+    
     X1_partial = torch.stack(X1_partial)
     idx_train_partial = torch.stack(idx_train_partial)
 
