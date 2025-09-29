@@ -14,7 +14,7 @@ parser.add_argument('--visualize', action='store_true', help='Create comparison 
 args = parser.parse_args()
 print(args)
 
-def upscale_trajectories(input_file, output_file, scale_factor=2, method='cubic_spline'):
+def UpSample(input_file, output_file, scale_factor=2, method='cubic_spline'):
     """
     Upscale PDE trajectory data using interpolation.
     
@@ -142,7 +142,7 @@ def visualize_comparison(original_data, upscaled_data, traj_idx=0, time_idx=0, s
 
 if __name__ == "__main__":
     # Perform upscaling
-    upscaled_data = upscale_trajectories(args.input, args.output, args.scale_factor, args.method)
+    upscaled_data = UpSample(args.input, args.output, args.scale_factor, args.method)
 
     print("Creating visualization...")
     original_data = torch.load(args.input, weights_only=False, map_location=torch.device('cpu'))
