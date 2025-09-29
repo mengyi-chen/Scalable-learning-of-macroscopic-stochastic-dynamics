@@ -1,30 +1,30 @@
 #!/bin/bash
 
-# # Step 1: Generate small-system trajectory distribution and test data
-# cd raw_data
-# echo "Generating small-system trajectory distribution and test data..."
-# python batch_solver.py  --nx 100 --bs 50
-# python batch_solver.py --nx 200 --bs 20
+# Step 1: Generate small-system trajectory distribution and test data
+cd raw_data
+echo "Generating small-system trajectory distribution and test data..."
+python batch_solver.py  --nx 100 --bs 50
+python batch_solver.py --nx 200 --bs 20
 
-# k_values=(0.05 0.1 0.15)
-# m_values=(0.45 0.5 0.55)
+k_values=(0.05 0.1 0.15)
+m_values=(0.45 0.5 0.55)
 
-# for k in "${k_values[@]}"; do
-#     for m in "${m_values[@]}"; do
-#         python batch_solver.py --nx 200 --bs 50 --flag_test --m $m --k $k
-#     done
-# done
-# cd ..
+for k in "${k_values[@]}"; do
+    for m in "${m_values[@]}"; do
+        python batch_solver.py --nx 200 --bs 50 --flag_test --m $m --k $k
+    done
+done
+cd ..
 
-# # Step 2: generate large-system snapshots from small-system trajectory distribution
-# cd raw_data_upsample
-# # hierarchical upsampling scheme 
-# echo "Generating large-system snapshots from small-system trajectory distribution..."
-# python hierarchical_upsampling.py
-# # partial evolution scheme
-# echo "Running partial evolution scheme..."
-# python partial_evolution.py
-# cd ..
+# Step 2: generate large-system snapshots from small-system trajectory distribution
+cd raw_data_upsample
+# hierarchical upsampling scheme 
+echo "Generating large-system snapshots from small-system trajectory distribution..."
+python hierarchical_upsampling.py
+# partial evolution scheme
+echo "Running partial evolution scheme..."
+python partial_evolution.py
+cd ..
 
 # Step 3: Closure modeling of macroscopic dynamics
 cd train
