@@ -115,7 +115,7 @@ if __name__ == "__main__":
         idx_partial = idx_train_partial[i] # [B]
 
         # data for our method 
-        z0, z1_hat, z0_naive, z1_naive = AE.encode(x0, x1_partial, partial=True, index=idx_partial)
+        z0, z1_hat, z0_naive, z1_naive = AE.encode_pairs(x0, x1_partial, partial=True, index=idx_partial)
         z0_train.append(z0)
         z1_train_partial.append(z1_hat)
 
@@ -163,7 +163,7 @@ if __name__ == "__main__":
         x0 = x0_val[i]
         x1 = x1_val[i]
 
-        z0, z1 = AE.encode(x0, x1, partial=False)
+        z0, z1 = AE.encode_pairs(x0, x1, partial=False)
         z0_val.append(z0)
         z1_val.append(z1)
     z0_val = torch.stack(z0_val, 0)  

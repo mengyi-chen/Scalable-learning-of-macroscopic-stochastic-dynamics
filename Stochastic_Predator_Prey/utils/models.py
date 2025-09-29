@@ -6,33 +6,33 @@ import torch.nn.init as init
 from tqdm import tqdm
 
 class Autoencoder(nn.Module):
-    def __init__(self, grid_size, hidden_dim, n_patch=10):
+    def __init__(self, grid_size, closure_dim, n_patch=10):
         super(Autoencoder, self).__init__()
         self.input_dim = grid_size 
-        self.hidden_dim = hidden_dim
+        self.closure_dim = closure_dim
         self.n_patch = n_patch
-        assert grid_size % n_patch == 0, "Grid size must be divisible by number of parts"
-        self.part_size = grid_size // n_patch
+        assert grid_size % n_patch == 0, "Grid size must be divisible by n_patch"
+        self.patch_size = grid_size // n_patch
 
         # Encoder
         self.encoder_net = nn.Sequential(
-            nn.Linear(self.part_size, 32),
+            nn.Linear(self.patch_size, 32),
             nn.ReLU(),
             nn.Linear(32, 32),
             nn.ReLU(),
-            nn.Linear(32, self.hidden_dim // 2),
+            nn.Linear(32, self.closure_dim // 2),
         )
 
         # Decoder
         self.decoder_net = nn.Sequential(
-            nn.Linear(self.hidden_dim + 2, 32),
+            nn.Linear(self.closure_dim + 2, 32),
             nn.ReLU(),
             nn.Linear(32, 32),
             nn.ReLU(),
             nn.Linear(32, self.input_dim * 2),
         )
-        self.register_buffer('mean', torch.zeros(2 + hidden_dim), persistent=False)
-        self.register_buffer('std', torch.ones(2 + hidden_dim), persistent=False)
+        self.register_buffer('mean', torch.zeros(2 + closure_dim), persistent=False)
+        self.register_buffer('std', torch.ones(2 + closure_dim), persistent=False)
 
         self.apply(self._init_weights)
 
@@ -41,57 +41,101 @@ class Autoencoder(nn.Module):
             nn.init.xavier_uniform_(module.weight)
         
     def cal_macro(self, x):
-        # x: [B, 2, grid_size]
+        """Calculate macroscopic variables: mean of prey and predator populations
+
+        Args:
+            x (torch.Tensor): Input tensor of shape [B, 2, grid_size]
+
+        Returns:
+            torch.Tensor: Macroscopic variables of shape [B, 2]
+        """
         z_macro = torch.mean(x, -1)
         return z_macro
 
     def encoder(self, x):
-        # x shape: [B, 2, n_dim]
+        """Encode the input state into latent representation
+
+        Args:
+            x (torch.Tensor): Input tensor of shape [B, 2, grid_size]
+
+        Returns:
+            torch.Tensor: Latent representation of shape [B, closure_dim + 2]
+        """
+        # Calculate macroscopic variables
         z_macro = self.cal_macro(x)  # [B, 2] 
 
-        x = x.reshape(-1, 2, self.n_patch, self.part_size) # [B, 2, n_patch, part_size]
-        z_val = self.encoder_net(x)  # [B, 2, n_patch, hidden_dim // 2]
-        z_val = torch.mean(z_val, dim=2).flatten(1, 2) # [b, 2, hidden_dim // 2]
+        # Calculate closure variables
+        # \hat{z} = \frac{1}{K} \sum_{I} \hat{z}_{I}
+        x = x.reshape(-1, 2, self.n_patch, self.patch_size) # [B, 2, n_patch, patch_size]
+        z_val = self.encoder_net(x)  # [B, 2, n_patch, closure_dim // 2]
+        z_val = torch.mean(z_val, dim=2).flatten(1, 2) # [B, closure_dim]
 
-        z = torch.cat([z_macro, z_val], -1)  # [B, hidden_dim + 2]
+        # Combine macroscopic and closure variables
+        # z = (z^{\ast}, \hat{z})
+        z = torch.cat([z_macro, z_val], -1)  # [B, closure_dim + macro_dim]
         return z
 
-    def encode(self, x0, x1, partial=False, index=None):
+    def encode_pairs(self, x0, x1, partial=False, index=None):
+        """Encode pairs of input tensors.
+
+        Args:
+            x0 (Tensor): Input tensor of shape [B, 2, grid_size]
+            x1 (Tensor): Input tensor of shape [B, 2, grid_size] if partial is False, else [B, 2, patch_size]
+            partial (bool, optional): Whether to use partial encoding. Defaults to False.
+            index (Tensor, optional): Indices of the patches to use for partial encoding. Defaults to None.
+
+        Returns:
+            Tuple[Tensor, Tensor]: Encoded representations of the input tensors.
+        """
 
         if partial == False:
-            z0 = self.encoder(x0)  # [B, macro_dim + hidden_dim]
-            z1 = self.encoder(x1) # [B, macro_dim + hidden_dim]
+            # Full evolution case
+            z0 = self.encoder(x0)  # [B, macro_dim + closure_dim]
+            z1 = self.encoder(x1) # [B, macro_dim + closure_dim]
 
-            z0 = (z0 - self.mean) / (self.std) # [B, macro_dim + hidden_dim]
-            z1 = (z1 - self.mean) / (self.std) # [B, macro_dim + hidden_dim]
+            z0 = (z0 - self.mean) / (self.std) # [B, macro_dim + closure_dim]
+            z1 = (z1 - self.mean) / (self.std) # [B, macro_dim + closure_dim]
             return z0, z1
         
         if partial == True:
+            # Partial evolution case
             assert index is not None, "index must be provided when partial is True"
             assert index.shape[0] == x0.shape[0], "index must have the same batch size as x"
 
+            # ========== our method ==========
+            # z0 = \varphi(x0)
             z0 = self.encoder(x0)
 
-            x0 = x0.reshape(-1, 2, self.n_patch, self.part_size)
+            x0 = x0.reshape(-1, 2, self.n_patch, self.patch_size)
             batch_indices = torch.arange(x0.shape[0], device=x0.device)
 
-            x0_partial = x0[batch_indices, :, index] # [B, 2, part_size]
-            x1_partial = x1 # [B, 2, part_size]
+            # $x_{0, I}$
+            x0_partial = x0[batch_indices, :, index] # [B, 2, patch_size]
+
+            # $x_{1, I}$
+            x1_partial = x1 # [B, 2, patch_size]
         
             z0_macro_partial = self.cal_macro(x0_partial) # [B, 2]
             z1_macro_partial = self.cal_macro(x1_partial) # [B, 2] 
-            z0_hat_partial = self.encoder_net(x0_partial).flatten(1, 2) # [B, hidden_dim]
-            z1_hat_partial = self.encoder_net(x1_partial).flatten(1, 2) # [B, hidden_dim]
+            z0_hat_partial = self.encoder_net(x0_partial).flatten(1, 2) # [B, closure_dim]
+            z1_hat_partial = self.encoder_net(x1_partial).flatten(1, 2) # [B, closure_dim]
 
-            z0_partial = torch.cat([z0_macro_partial, z0_hat_partial], -1) # [B, macro_dim + hidden_dim]
-            z1_partial = torch.cat([z1_macro_partial, z1_hat_partial], -1) # [B, macro_dim + hidden_dim]
+            # $\varphi(x_{0, I})$
+            z0_partial = torch.cat([z0_macro_partial, z0_hat_partial], -1) # [B, macro_dim + closure_dim]
+            # $\varphi(x_{1, I})$
+            z1_partial = torch.cat([z1_macro_partial, z1_hat_partial], -1) # [B, macro_dim + closure_dim]
 
-            z1_hat = z0 + (z1_partial - z0_partial) # [B, macro_dim + hidden_dim]
+            # z1 = \varphi(x_0) + (\varphi(x_{1, I}) - \varphi(x_{0, I}))
+            z1_hat = z0 + (z1_partial - z0_partial) # [B, macro_dim + closure_dim]
 
             z0 = (z0 - self.mean) / (self.std)
-            z1_hat = (z1_hat - self.mean) / (self.std) # [B, macro_dim + hidden_dim]
+            z1_hat = (z1_hat - self.mean) / (self.std) # [B, macro_dim + closure_dim]
 
+            # ========== Baseline ==========
+            # z0 = \varphi(x0)
             z0_naive = z0
+
+            # z1_naive = \varphi(x_{1, I})
             z1_naive = z1_partial 
             z1_naive = (z1_naive - self.mean) / (self.std)
 
@@ -104,6 +148,14 @@ class Autoencoder(nn.Module):
         return x
 
     def forward(self, x):
+        """Autoencoder for identifying closure variables
+
+        Args:
+            x (Tensor): Input tensor of shape [B, 2, grid_size]
+        
+        Returns:
+            Tensor: Reconstructed tensor of shape [B, 2, grid_size]
+        """
         z = self.encoder(x)
         x = self.decoder(z)
         return x
@@ -156,23 +208,33 @@ class DiffusitivityNet(nn.Module):
             nn.init.xavier_uniform_(module.weight)
 
     def forward(self, x):
-        
+        """Diffusion term 
+        Args:
+            x (Tensor): Input tensor of shape [B, n_dim]
+
+        Returns:
+            Tensor: Output tensor of shape [B, n_dim, n_dim]
+        """        
+        # General case: arbitrary diffusion matrix
         if self.mode == 'arbitrary':
-            
+
             output = self.output_layer(x)
             output = output.view(-1, self.n_dim, self.n_dim)
-           
+        
+        # Diagonal diffusion matrix
         elif self.mode == 'diagonal':
             
             output = self.output_layer(x)
             output = torch.diag_embed(output)
             output = output.view(-1, self.n_dim, self.n_dim)
 
+        # Constant diagonal diffusion matrix
         elif self.mode == 'constant_diagonal':
             output = self.kernel.unsqueeze(0).repeat(x.shape[0], 1)
             output = torch.diag_embed(output)
             output = output.view(-1, self.n_dim, self.n_dim)
 
+        # Constant diffusion matrix
         elif self.mode == 'constant':
             output = self.kernel.unsqueeze(0).repeat(x.shape[0], 1)
             output = output.view(-1, self.n_dim, self.n_dim) 
@@ -185,6 +247,7 @@ class SDE_Net(nn.Module):
         self.delta_t = nn.Parameter(torch.tensor(delta_t), requires_grad=False)
         self.n_dim = n_dim
         self.mode = mode
+        # Drift network
         self.drift_net = nn.Sequential(
             nn.Linear(n_dim, 64),
             nn.ReLU(),
@@ -196,6 +259,7 @@ class SDE_Net(nn.Module):
         )
         self.epsilon = epsilon
         
+        # Diffusitivity network
         self.sigma_net = DiffusitivityNet(n_dim=n_dim, mode=mode)
 
         # self.apply(self._init_weights)
@@ -213,8 +277,18 @@ class SDE_Net(nn.Module):
         return drift
     
     def custom_loss(self, x0, x1, dt=None, coeff=1):
-        # x0: [B, n_dim]
-        # x1: [B, n_dim]
+        """Compute the custom loss between two states.
+            Loss = (x1 - x0 - drift * dt)^T * (K \Sigma)^{-1} * (x1 - x0 - drift * dt) + log|K \Sigma|
+        
+        Args:
+            x0 (Tensor): The initial state. Shape: [B, n_dim]
+            x1 (Tensor): The target state. Shape: [B, n_dim]
+            dt (float, optional): The time step size. If None, uses self.delta_t. Defaults to None.
+            coeff (int, optional): hyperparameter to scale the covariance matrix. Defaults to 1.
+
+        Returns:
+            Tensor: The computed loss.
+        """
         if dt == None:
             dt = self.delta_t
 
@@ -222,9 +296,9 @@ class SDE_Net(nn.Module):
         sigma = self.sigma_net(x0) # [B, 3, 3]
 
         cov_matrix = torch.bmm(sigma, sigma.transpose(1, 2)) * dt.view(-1, 1, 1)
+        # add small value to the diagonal for numerical stability
         Sigma = cov_matrix * coeff + torch.eye(self.n_dim, device=x0.device) * self.epsilon
         Sigma_inv = torch.linalg.inv(Sigma)
-
 
         X = x1 - x0 - drift * dt
         a1 = torch.einsum('ij,ijk,ik->i', X, Sigma_inv, X)
@@ -236,6 +310,16 @@ class SDE_Net(nn.Module):
         return torch.mean(a1 + a2)
     
     def predict(self, x, steps, dt=None):
+        """Predict the long-term trajectory for a given number of steps.
+        
+        Args:
+            x (Tensor): The initial state. Shape: [B, n_dim]
+            steps (int): The number of steps to predict.
+            dt (float, optional): The time step size. If None, uses self.delta_t. Defaults to None.
+        
+        Returns:
+            Tensor: The predicted trajectory. Shape: [B, n_dim, steps]
+        """
         if dt == None:
             dt = self.delta_t
         
@@ -255,6 +339,15 @@ class SDE_Net(nn.Module):
         return predict_tra
         
     def forward(self, z0, noise):
+        """Euler-Maruyama scheme for one step
+
+        Args:
+            z0 (Tensor): The initial state.
+            noise (Tensor): The noise to be added.
+
+        Returns:
+            Tensor: The next state.
+        """
         # z0: [B, D]
         # noise: [B, D]
         drift = self.drift(z0) # [B, D]
@@ -262,4 +355,3 @@ class SDE_Net(nn.Module):
 
         z1 = z0 + drift * self.delta_t + torch.einsum('ijk,ik->ij', sigma, noise) * torch.sqrt(self.delta_t)
         return z1
-        

@@ -2,7 +2,7 @@
 
 # Step 1: Generate small-system trajectory distribution and test data
 cd raw_data
-echo "Generating small-system (n_s = 100) trajectory distribution..."
+echo "Generating small-system (n_s = 100) trajectory distribution ..."
 python batch_solver.py  --nx 100 --bs 50
 
 echo "Generating validation data for large system (n=200) ..."
