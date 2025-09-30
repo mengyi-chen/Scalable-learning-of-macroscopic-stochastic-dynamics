@@ -1,0 +1,15 @@
+L: 64
+T: 2.5
+h: 0.1
+seed: 0
+num_run: 50 
+n_proc: 50
+mag: null
+patch_L: 16
+batch_size: 2000
+N_target_train: 100000
+steps: 200
+gpu_idx: 2
+macro_dim: 2
+closure_dim: 2
+n_dim: 4

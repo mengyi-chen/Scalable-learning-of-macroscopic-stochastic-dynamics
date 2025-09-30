@@ -1,4 +1,6 @@
+# Acknowledgements: The code is adapted from https://github.com/ising-model/ising-model-python.git
 import os, sys
+sys.path.append('../')
 import time
 import argparse
 import random
@@ -9,21 +11,24 @@ import multiprocessing as mp
 import matplotlib.pyplot as plt
 from contextlib import contextmanager
 from glauber2d_ising import Glauber2DIsing
-from sklearn.model_selection import train_test_split
+import yaml
+from utils.utils import glauber_continuous_Ising
+
+# Load parameters from YAML configuration file
+with open('../config/config.yaml', 'r') as file:
+    params = yaml.safe_load(file)
 
 def args_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--L', type=int, default=64, help="Length of the lattice: L")
-    parser.add_argument('--T', type=float, default=2.5, help="Temperature")
-    parser.add_argument('--h', type=float, default=0.1, help="externel field strength")
-    parser.add_argument('--steps', type=int, default=500, help="Number of glauber dynamics steps")
-    # parser.add_argument('--dt', type=float, default=0.1, help="Time step of glauber dynamics")
-    # parser.add_argument('--save_interval', type=int, default=10, help="Interval of saving the microscopic configuration")
-    parser.add_argument('--seed', type=int, default=0, help='Random seed (default: 0)')
-    parser.add_argument('--num_run', type=int, default=50, help='')
-    parser.add_argument('--n_proc', type=int, default=50, help="Number of processors for multiprocessing")
+    parser.add_argument('--L', type=int, default=params['L'], help="Length of the lattice: L")
+    parser.add_argument('--T', type=float, default=params['T'], help="Temperature")
+    parser.add_argument('--h', type=float, default=params['h'], help="externel field strength")
+    parser.add_argument('--steps', type=int, default=params['steps'], help="Number of glauber dynamics steps")
+    parser.add_argument('--seed', type=int, default=params['seed'], help='Random seed (default: 0)')
+    parser.add_argument('--num_run', type=int, default=params['num_run'], help='Number of independent runs (default: 100)')
+    parser.add_argument('--n_proc', type=int, default=params['n_proc'], help="Number of processors for multiprocessing")
     parser.add_argument('--mag', type=float, default=None, help="Target magnetization")
-    parser.add_argument('--flag_test', action='store_true', help="Flag for test mode")
+    parser.add_argument('--data_mode', type=str, choices=['train', 'val', 'test'], default='train', help="Mode of the data: train, val, or test")
     args = parser.parse_args()
     return args
 
@@ -104,23 +109,39 @@ if __name__ == "__main__":
     print('config_time shape:', config_time.shape)
 
     X0 = config_time
-    if args.flag_test:
-        torch.save(X0, os.path.join(rootpath, 'X0_val.pt'))
-    else:
-        torch.save(X0, os.path.join(rootpath, 'X0.pt')) 
-        np.save(os.path.join(rootpath, 'kmc_times.npy'), kmc_times)
     
-    # ========= plot =========
+    save_name = {'train': 'X0.pt', 'val': 'X0_val.pt', 'test': 'X0_test.pt'}
+    torch.save(X0, os.path.join(rootpath, save_name[args.data_mode]))
+    np.save(os.path.join(rootpath, 'kmc_times.npy'), kmc_times)
+
+    if args.data_mode == 'val':
+        X0_val = X0
+        X1_val = []
+        time_step_val = []
+        for i in tqdm(range(X0_val.shape[0])):
+            tra = X0_val[i].clone() # [B, L, L]
+            tra_dt, glauber_time = glauber_continuous_Ising(tra.clone(), 1.0 / args.T, args.h)
+            X1_val.append(tra_dt)
+            time_step_val.append(glauber_time)
+
+        X1_val = torch.stack(X1_val)
+        time_step_val = torch.stack(time_step_val)
+
+        torch.save(X1_val, os.path.join(rootpath, f'X1_val.pt'))
+        torch.save(time_step_val, os.path.join(rootpath, f'time_step_val.pt'))
+
+    # ========= Visualization =========
     Ms_time = np.array(Ms_time, dtype=np.float32)
     fig = plt.figure(figsize=(8, 6))
     axes = fig.add_subplot(1, 1, 1)
     for i in range(Ms_time.shape[0]):
         plt.plot(kmc_times[i], Ms_time[i])
-        if i > 10:
+        if i > 50:
             break
     plt.xlabel("time (t)", fontsize=20)
     plt.ylabel('Magnetization', fontsize=20)
     axes.set_ylim(-1, 1)
+    
     plot_name = rootpath + f'/glauber_time.png'
     plt.savefig(plot_name)
     plt.close()

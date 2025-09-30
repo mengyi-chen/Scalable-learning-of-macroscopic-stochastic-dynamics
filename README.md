@@ -6,7 +6,7 @@ This repository contains implementations and experiments for *Scalable learning 
 ### `Stochastic_Predator_Prey/`
 Focuses on the stochastic predator-prey model.
 - `raw_data/`: Scripts for generating raw data.
-- `raw_data_upscale/`: Scripts for upscaling raw data.
+- `raw_data_upsample/`: Scripts for upscaling raw data.
 - `test/`: Test scripts and data.
 - `train/`: Training scripts for the model.
 - `utils/`: Utility functions and modules.
@@ -15,7 +15,7 @@ Focuses on the stochastic predator-prey model.
 ### `Curie_Weiss/`
 Contains scripts and data for the Curie-Weiss model.
 - `raw_data/`: Scripts for generating raw data.
-- `raw_data_upscale/`: Scripts for upscaling raw data and visualizations.
+- `raw_data_upsample/`: Scripts for upscaling raw data and visualizations.
 - `test/`: Test scripts and notebooks.
 - `train/`: Training scripts for the model.
 - `utils/`: Utility functions and modules.
@@ -23,7 +23,7 @@ Contains scripts and data for the Curie-Weiss model.
 ### `Ising/`
 Contains scripts and data for the Ising model.
 - `raw_data/`: Scripts for generating raw data.
-- `raw_data_upscale/`: Scripts for upscaling raw data and visualizations.
+- `raw_data_upsample/`: Scripts for upscaling raw data and visualizations.
 - `test/`: Test scripts, results, and visualizations.
 - `train/`: Training scripts for the model.
 - `utils/`: Utility functions and modules.
@@ -31,7 +31,7 @@ Contains scripts and data for the Ising model.
 ### `Ising_phase_transition/`
 Focuses on the Ising phase transition.
 - `raw_data/`: Scripts for generating raw data.
-- `raw_data_upscale/`: Scripts for upscaling raw data and visualizations.
+- `raw_data_upsample/`: Scripts for upscaling raw data and visualizations.
 - `test/`: Test scripts, results, and visualizations.
 - `train/`: Training scripts for the model.
 - `utils/`: Utility functions and modules.
@@ -40,7 +40,7 @@ Focuses on the Ising phase transition.
 Contains scripts and data for NbMoTa alloy simulations.
 - `input/`: Input data.
 - `raw_data/`: Scripts for generating raw data.
-- `raw_data_upscale/`: Scripts for upscaling raw data.
+- `raw_data_upsample/`: Scripts for upscaling raw data.
 - `test/`, `train/`, `utils/`: Similar structure as other models.
 
 

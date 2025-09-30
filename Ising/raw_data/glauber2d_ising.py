@@ -6,9 +6,22 @@ import time, os
 
 @numba.jit(nopython=True)
 def _glauber(spin, L, beta, h=0):
+    """Perform one sweep of Continuous-time Glauber dynamics for the Ising model.
+
+    Args:
+        spin (numpy.ndarray): 2D array of shape [L, L] with values -1 or +1.
+        L (int): Length of the lattice.
+        beta (float): Inverse temperature (1/k_B T).
+        h (float, optional): External magnetic field strength. Defaults to 0.0. 
+
+    Returns:
+        numpy.ndarray: Updated spin configuration.
+        float: Time increment for the KMC simulation.
+    """
     glauber_time = 0.0
     rates = np.empty((L, L))
 
+    # Precompute rates for all spins
     for x in range(L):
         for y in range(L):
             s = spin[x, y]
@@ -27,16 +40,20 @@ def _glauber(spin, L, beta, h=0):
         prob = rates_flat / total_rate
         cum_probs = np.cumsum(prob)
         
+        # Select a spin to flip based on rates
         r = np.random.rand()
         selected_flat_idx = np.searchsorted(cum_probs, r)
         selected_flat_idx = min(selected_flat_idx, L * L - 1)
         x, y = divmod(selected_flat_idx, L)
 
+        # Flip the selected spin
         spin[x, y] *= -1
 
+        # Update time
         jumping_time = -np.log(np.random.rand()) / total_rate
         glauber_time += jumping_time
 
+        # Update rates for the flipped spin and its neighbors
         for dx, dy in [(0,0), (-1,0), (1,0), (0,-1), (0,1)]:
             i = (x + dx) % L
             j = (y + dy) % L
@@ -54,6 +71,8 @@ def _glauber(spin, L, beta, h=0):
 
 
 class Glauber2DIsing:
+    """Glauber dynamics for 2D Ising model with periodic boundary conditions.
+    """
     def __init__(self, args):
         self.L = args.L
         self.steps = args.steps
@@ -63,8 +82,14 @@ class Glauber2DIsing:
         self.mag = args.mag
 
     def _init_spin(self):
+        """Initialize the spin configuration.
+
+        Returns:
+            np.ndarray: 2D array representing the initial spin configuration.
+        """
         
         if self.mag == None:
+            # Random initialization
             initial_mag = 2 * np.random.rand() - 1
             num_up = int((1 + initial_mag) * self.area / 2)
         else:
@@ -79,12 +104,28 @@ class Glauber2DIsing:
 
     # Calculate energy using neighbors
     def _calc_energy(self, spin):
+        """Calculate the energy of the system.
+
+        Args:
+            spin (numpy.ndarray): 2D array of shape [L, L] with values -1 or +1.
+
+        Returns:
+            float: energy
+        """
         R = np.roll(spin, 1, axis=0) + np.roll(spin, -1, axis=0) \
             + np.roll(spin, 1, axis=1) + np.roll(spin, -1, axis=1)
         Hamiltonian = np.sum(-R * spin) / (2 * self.area) - self.h * np.sum(spin) / self.area
         return Hamiltonian
     
     def _calc_magnetization(self, spin):
+        """Calculate the magnetization of the system.
+
+        Args:
+            spin (numpy.ndarray): 2D array of shape [L, L] with values -1 or +1.
+
+        Returns:
+            float: magnetization
+        """
         return np.sum(spin) / self.area
 
     def _compute_domain_wall_density_2d(self, spin):
@@ -112,6 +153,19 @@ class Glauber2DIsing:
 
     
     def simulate(self, beta, h=0):
+        """Run the Glauber dynamics simulation.
+
+        Args:
+            beta (float): Inverse temperature (1/k_B T).
+            h (int, optional): External magnetic field strength.
+
+        Returns:
+            float: Energy, magnetization, specific heat, and susceptibility.
+            list: Magnetization time series
+            np.ndarray: Configuration time series
+            list: KMC time points
+        """
+
         self.h = h
         E1, M1, E2, M2 = 0, 0, 0, 0
         M1_list = []
@@ -119,6 +173,7 @@ class Glauber2DIsing:
         kmc_time = [0]
         spin = self._init_spin()
 
+        # Equilibration steps
         for _ in range(self.eqstep):            
             M = self._calc_magnetization(spin)
             M1_list.append(M)
