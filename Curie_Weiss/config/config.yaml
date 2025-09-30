@@ -1,0 +1,12 @@
+L: 16
+T: 1.1
+h: 0.1
+steps: 200
+n_proc: 100
+seed: 0
+num_run: 100
+patch_L: 16
+N_target_train: 100000
+batch_size: 2000
+gpu_idx: 2
+n_dim: 1

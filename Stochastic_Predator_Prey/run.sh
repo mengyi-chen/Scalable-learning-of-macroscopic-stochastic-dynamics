@@ -3,17 +3,17 @@
 # Step 1: Generate small-system trajectory distribution and test data
 cd raw_data
 echo "Generating small-system (n_s = 100) trajectory distribution ..."
-python batch_solver.py  --nx 100 --bs 50
+python batch_solver.py  --nx 100 --bs 50 --data_mode train
 
 echo "Generating validation data for large system (n=200) ..."
-python batch_solver.py --nx 200 --bs 20
+python batch_solver.py --nx 200 --bs 20 --data_mode val
 
 echo "Generating test data for large system (n=200) with various parameters..."
 k_values=(0.05 0.1 0.15)
 m_values=(0.45 0.5 0.55)
 for k in "${k_values[@]}"; do
     for m in "${m_values[@]}"; do
-        python batch_solver.py --nx 200 --bs 50 --flag_test --m $m --k $k
+        python batch_solver.py --nx 200 --bs 50 --data_mode test --m $m --k $k
     done
 done
 cd ..

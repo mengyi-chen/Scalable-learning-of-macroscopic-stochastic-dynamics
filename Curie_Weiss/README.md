@@ -1,6 +1,6 @@
-# Stochastic Predator-Prey Model
+# Curie-Weiss Model
 
-This is an implementation of our method on the stochastic predator-prey system.
+This is an implementation of our method on the Curie-Weiss model.
 
 ## Directory Structure
 
@@ -8,14 +8,13 @@ This is an implementation of our method on the stochastic predator-prey system.
   - `config.yaml`: Configuration file containing default parameters for the simulations.
 
 - **raw_data/**
-  - `batch_solver.py`: microscopic simulation of the stochstic predator-prey system using numerical solvers.
+  - `raw_data_generation.py`: microscopic simulation of the Curie-Weiss model to generate trajectory data.
+  - `glauber_curie_weiss.py`: Implementation of the Continuous-time Glauber dynamics for the Curie-Weiss model.
 
 - **raw_data_upsample/**
-  - `hierarchical_upsampling.py`: generate large-system data distribution $\mathcal{D}$ from small-system trajectory distributions $\mathcal{D}_s$.
-  - `partial_evolution.py`: Implementation of the partial evolution scheme to generate $x_{t+dt, \mathcal{I}}$.
+  - `upsampling_evolution.py`: Implementation of the hierarchical upsampling scheme and partial evolution scheme
 
 - **train/**
-  - `closure_modeling.py`: Script for training an autoencoder for identifying closure variables .
   - `train_SDE_partial.py`: Script for training stochastic differential equation models.
 
 - **utils/**
@@ -25,7 +24,6 @@ This is an implementation of our method on the stochastic predator-prey system.
   - Contains test scripts and visualizations for validating the model.
   - `test.ipynb`: Jupyter notebook for testing the results
   - `plot.ipynb`: visualization of the results
-
 
 ## Getting Started
 To run the whole pipeline, simply execute:

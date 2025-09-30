@@ -12,22 +12,30 @@ import numpy as np
 from numba import njit
 
 @njit
-def _glauberCW(spin, L, beta, h=0.0, n_events=None):
+def _glauberCW(spin, L, beta, h=0.0):
+    """Perform one sweep of Continuous-time Glauber dynamics for the Curie-Weiss model.
+
+    Args:
+        spin (numpy.ndarray): 2D array of shape [L, L] with values -1 or +1.
+        L (int): Length of the lattice.
+        beta (float): Inverse temperature (1/k_B T).
+        h (float, optional): External magnetic field strength. Defaults to 0.0. 
+
+    Returns:
+        numpy.ndarray: Updated spin configuration.
+        float: Time increment for the KMC simulation.
     """
-    Continuous-time Glauber dynamics for Curie–Weiss (complete graph) in 2D.
-    """
-    V = L * L
-    if n_events is None:
-        n_events = V
+    area = L * L
 
     spin_flat = spin.ravel()  # view
+
     # Buckets for +1 and -1 indices
-    pos_idx = np.empty(V, dtype=np.int64)
-    neg_idx = np.empty(V, dtype=np.int64)
+    pos_idx = np.empty(area, dtype=np.int64)
+    neg_idx = np.empty(area, dtype=np.int64)
     n_pos = 0
     n_neg = 0
     ssum = 0
-    for i in range(V):
+    for i in range(area):
         s = spin_flat[i]
         ssum += s
         if s > 0:
@@ -37,10 +45,10 @@ def _glauberCW(spin, L, beta, h=0.0, n_events=None):
 
     total_time = 0.0
 
-    for _ in range(n_events):
+    for _ in range(area):
         # Mean-field terms for the two classes
-        R_plus  = (ssum - 1.0) / V
-        R_minus = (ssum + 1.0) / V
+        R_plus  = (ssum - 1.0) / area
+        R_minus = (ssum + 1.0) / area
 
         dH_plus  = 2.0 * ( R_plus + h)         # flip +1 -> -1
         dH_minus = 2.0 * (-R_minus - h)        # flip -1 -> +1
@@ -83,9 +91,9 @@ def _glauberCW(spin, L, beta, h=0.0, n_events=None):
 
     return spin.reshape(L, L), total_time
 
-
-
 class Glauber2DCW:
+    """Glauber dynamics for 2D Curie-Weiss model.
+    """
     def __init__(self, args):
         self.L = args.L
         self.steps = args.steps
@@ -95,11 +103,18 @@ class Glauber2DCW:
         self.mag = args.mag
 
     def _init_spin(self):
+        """Initialize the spin configuration.
+
+        Returns:
+            np.ndarray: 2D array of shape [L, L] with values -1 or +1.
+        """
 
         if self.mag == None:
+            # Random initialization
             initial_mag = 2 * np.random.rand() - 1
             num_up = int((1 + initial_mag) * self.area / 2)
         else:
+            # Initialization with a target magnetization
             num_up = int((1 + self.mag) * self.area / 2)
             
         # Create initial spin configuration
@@ -110,12 +125,29 @@ class Glauber2DCW:
         return spins.reshape(self.L, self.L)  # 2D reshape
 
     def _calc_energy(self, spin):
+        """Calculate the energy of the system.
+
+        Args:
+            spin (numpy.ndarray): 2D array of shape [L, L] with values -1 or +1.
+
+        Returns:
+            float: energy
+        """
         mag = self._calc_magnetization(spin)
         Hamiltonian = - mag ** 2 / 2 - self.h * mag
         return Hamiltonian
     
     def _calc_magnetization(self, spin):
+        """Calculate the magnetization of the system.
+
+        Args:
+            spin (numpy.ndarray): 2D array of shape [L, L] with values -1 or +1.
+
+        Returns:
+            float: magnetization
+        """
         return np.sum(spin) / self.area
+
     
     def _compute_domain_wall_density_2d(self, spin):
         """
@@ -141,7 +173,20 @@ class Glauber2DCW:
         return rho_dw
 
     
-    def simulate(self, beta, h=0, n_events=64):
+    def simulate(self, beta, h=0):
+        """Run the Glauber dynamics simulation.
+
+        Args:
+            beta (float): Inverse temperature (1/k_B T).
+            h (int, optional): External magnetic field strength.
+
+        Returns:
+            float: Energy, magnetization, specific heat, and susceptibility.
+            list: Magnetization time series
+            np.ndarray: Configuration time series
+            list: KMC time points
+        """
+
         self.h = h
         E1, M1, E2, M2 = 0, 0, 0, 0
         M1_list = []
@@ -149,12 +194,13 @@ class Glauber2DCW:
         kmc_time = [0]
         spin = self._init_spin()
 
+        # Equilibration steps
         for _ in range(self.eqstep):
             M = self._calc_magnetization(spin)
             M1_list.append(M)
             config_list.append(spin.copy())
             
-            _, delta_t = _glauberCW(spin, self.L, beta, h=self.h, n_events=n_events)
+            _, delta_t = _glauberCW(spin, self.L, beta, h=self.h)
             kmc_time.append(kmc_time[-1] + delta_t)
 
         # Monte Carlo steps
@@ -165,13 +211,14 @@ class Glauber2DCW:
             M1_list.append(M)
             config_list.append(spin.copy())
 
+            # calculate the equilibrium statistics
             M = np.abs(M)
             E1 += E / self.mcstep
             M1 += M / self.mcstep
             E2 += E ** 2 / self.mcstep
             M2 += M ** 2 / self.mcstep
 
-            _, delta_t = _glauberCW(spin, self.L, beta, h=self.h, n_events=n_events)
+            _, delta_t = _glauberCW(spin, self.L, beta, h=self.h)
             kmc_time.append(kmc_time[-1] + delta_t)
 
         config_list = np.array(config_list)

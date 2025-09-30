@@ -25,7 +25,7 @@ torch.set_default_dtype(torch.float32)
 parser = argparse.ArgumentParser(description='Identify macroscopic dynamics')
 parser.add_argument('--gpu_idx', default=5, type=int, help='GPU index')
 parser.add_argument('--seed', default=42, type=int, help='Random seed')
-parser.add_argument('--hidden_dim', default=4, type=int, help='latent dimension')
+parser.add_argument('--n_dim', default=4, type=int, help='latent dimension')
 parser.add_argument('--n', default=200, type=int, help='number of grid points for the large system')
 parser.add_argument('--n_s', default=40, type=int, help='number of grid points within each patch')
 parser.add_argument('--dt', default=0.1, type=float, help='time step')
@@ -39,7 +39,6 @@ parser.add_argument('--lr', default=0.001, type=float, help='learning rate')
 parser.add_argument('--mode', default='arbitrary', type=str, choices=['arbitrary', 'diagonal', 'constant_diagonal', 'constant'], help='structure of diffusion term')
 parser.add_argument('--epsilon', default=1e-5, type=float, help='small constant for numerical stability')
 parser.add_argument('--coeff', default=None, type=float, help='coefficient for the diffusion term')
-parser.add_argument('--method', default='ours', type=str, choices=['ours', 'naive'], help='method for training')
 args = parser.parse_args()
     
 class Trainer():
@@ -48,19 +47,13 @@ class Trainer():
 
         start_message = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Initializing."
         print(start_message)
-        date = datetime.now().strftime('%Y_%m_%d_%H:%M:%S')
         self.d = args.n_patch
         if args.coeff is not None:
             self.coeff = args.coeff
         else:
-            if args.method == 'ours':
-                self.coeff = self.d
-            elif args.method == 'naive':
-                self.coeff = 1
-            else:
-                raise ValueError(f"Method {args.method} is not supported.")
+            self.coeff = self.d
         
-        self.folder = os.path.join('../checkpoints',f'SDE_method_{args.method}_coeff_{self.coeff}_seed_{args.seed}')
+        self.folder = os.path.join('../checkpoints',f'SDE_coeff_{self.coeff}_seed_{args.seed}')
         if not os.path.exists(self.folder):
             os.mkdir(self.folder) 
                         
@@ -70,7 +63,7 @@ class Trainer():
                     format='%(levelname)s %(message)s',
                     datefmt='%H:%M:%S',
                     level=logging.INFO)
-        logging.info("Training log for DNA")
+        logging.info("Training log for Stochastic Predator-Prey system")
         self.logger = logging.getLogger('')
         self.logger.info(start_message)
         for arg in vars(args):
@@ -83,40 +76,26 @@ class Trainer():
         self.dt = torch.tensor(args.dt, device=self.device)
         self.load_data()
 
-        self.model = SDE_Net(self.dt, mode=args.mode, n_dim=args.hidden_dim, epsilon=args.epsilon).to(self.device)
+        self.model = SDE_Net(self.dt, mode=args.mode, n_dim=args.n_dim, epsilon=args.epsilon).to(self.device)
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=args.lr, amsgrad=True, weight_decay=0)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min',factor=0.5,threshold_mode='rel',patience=args.patience,cooldown=0,min_lr=5e-6)
         
-        print('coeff:', self.coeff)
-
- 
     def load_data(self):
         
 
         # ========= load train data =========
-        if args.method == 'ours':
             
-            self.z0_train = torch.load('../data/z0_train.pt', map_location=self.device) # [n_tra, length_per_tra, hidden_dim]
-            self.z1_train = torch.load('../data/z1_train_partial.pt', map_location=self.device) # [n_tra, length_per_tra, hidden_dim]
-
-        elif args.method == 'naive':
-
-            self.z0_train = torch.load('../data/z0_train_naive.pt', map_location=self.device) # [n_tra, length_per_tra, hidden_dim]
-            self.z1_train = torch.load('../data/z1_train_naive.pt', map_location=self.device) # [n_tra, length_per_tra, hidden_dim]
-
-     
+        self.z0_train = torch.load('../data/z0_train.pt', map_location=self.device) # [n_tra, length_per_tra, n_dim]
+        self.z1_train = torch.load('../data/z1_train_partial.pt', map_location=self.device) # [n_tra, length_per_tra, n_dim]
         z0_train = self.z0_train.flatten(0, 1)
         z1_train = self.z1_train.flatten(0, 1)
-
         print('z0_train shape:', z0_train.shape)
         print('z1_train shape:', z1_train.shape)
 
-        self.z0_val = torch.load(f'../data/z0_val.pt', map_location=self.device) # [n_tra, length_per_tra, hidden_dim]
-        self.z1_val = torch.load(f'../data/z1_val.pt', map_location=self.device) # [n_tra, length_per_tra, hidden_dim]  
-
+        self.z0_val = torch.load(f'../data/z0_val.pt', map_location=self.device) # [n_tra, length_per_tra, n_dim]
+        self.z1_val = torch.load(f'../data/z1_val.pt', map_location=self.device) # [n_tra, length_per_tra, n_dim]  
         z0_val = self.z0_val.flatten(0, 1)
         z1_val = self.z1_val.flatten(0, 1)
-
         print('z0_val shape:', z0_val.shape)
         print('z1_val shape:', z1_val.shape)
 
@@ -130,7 +109,7 @@ class Trainer():
 
         # ========= visualize =========
         fig = plt.figure(figsize=(8*3, 6))
-        plot = self.z0_val.detach().cpu().numpy() # [n_tra, length_per_tra, hidden_dim]
+        plot = self.z0_val.detach().cpu().numpy() # [n_tra, length_per_tra, n_dim]
         t = np.arange(plot.shape[1]) * self.dt.item()
 
         axes = fig.add_subplot(1, 3, 1)

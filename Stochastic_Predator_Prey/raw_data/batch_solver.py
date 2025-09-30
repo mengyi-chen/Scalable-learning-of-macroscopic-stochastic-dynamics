@@ -33,7 +33,7 @@ parser.add_argument('--k', default=None, type=float, help='parameter k for initi
 parser.add_argument('--noise_level', default=params['noise_level'], type=float, help='noise level')
 parser.add_argument('--D', default=params['D'], type=float, help='parameter D')
 parser.add_argument('--dt', default=params['dt'], type=float, help='dt')
-parser.add_argument('--flag_test', action='store_true', help='test')
+parser.add_argument('--data_mode', type=str, choices=['train', 'val', 'test'], default='train', help="Mode of the data: train, val, or test")
 parser.add_argument('--solver', default=params['solver'], type=str, choices=['euler', 'RK4'])
 parser.add_argument('--gpu_idx', default=5, type=int, help='GPU index')
 args = parser.parse_args()
@@ -52,7 +52,7 @@ def initial_value(Nx, x, bs=args.bs):
     """
 
     uv_init = np.zeros([bs, 2, Nx])
-    if args.flag_test:
+    if args.data_mode == 'test':
         # Use fixed parameters for testing
         assert args.m is not None
         assert args.k is not None
@@ -149,13 +149,15 @@ if __name__ == "__main__":
     print('X0 shape:', X0.shape)
     print('X1 shape:', X1.shape)
 
-    if not args.flag_test:
-        if args.nx == 100:
-            torch.save(X0, f'X0_grid_{args.nx}.pt')
-        else:
-            torch.save(X0, f'X0_val_grid_{args.nx}.pt')
-            torch.save(X1, f'X1_val_grid_{args.nx}.pt')
-    else:
+    if args.data_mode == 'val':
+        torch.save(X0, f'X0_val_grid_{args.nx}.pt')
+        torch.save(X1, f'X1_val_grid_{args.nx}.pt')
+
+    elif args.data_mode == 'train':
+
+        torch.save(X0, f'X0_grid_{args.nx}.pt')
+
+    elif args.data_mode == 'test':
         # Save results for testing
         folder = './test_data'
         if not os.path.exists(folder):

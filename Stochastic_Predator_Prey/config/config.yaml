@@ -10,3 +10,5 @@ noise_level: 0.02
 solver: euler
 flag_test: false
 n_patch: 5
+macro_dim: 2
+closure_dim: 2
