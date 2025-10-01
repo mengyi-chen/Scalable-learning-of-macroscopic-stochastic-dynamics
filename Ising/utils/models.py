@@ -118,7 +118,7 @@ class Encoder(nn.Module):
 
         Args:
             x0 (Tensor): Input tensor of shape [B, 2, grid_size]
-            x1 (Tensor): Input tensor of shape [B, 2, grid_size] if partial is False, else [B, 2, patch_size]
+            x1 (Tensor): Input tensor of shape [B, 2, grid_size] if partial is False, else [B, 2, patch_L]
             partial (bool, optional): Whether to use partial encoding. Defaults to False.
             index (Tensor, optional): Indices of the patches to use for partial encoding. Defaults to None.
 

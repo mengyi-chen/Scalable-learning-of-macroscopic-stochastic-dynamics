@@ -181,21 +181,23 @@ def UpSample(spins: torch.Tensor, repeat: int) -> torch.Tensor:
 def LocalRelax(
     spins: torch.Tensor,
     T: Optional[float] = None,
-    patch_size: int = 16,
+    patch_L: int = 16,
     stride: int = 8,
     h: float = 0.0,
     n_events: Optional[int] = None
 ) -> torch.Tensor:
-    """
-    Batched version of patchwise relaxation using CT-Glauber KMC for 2D systems.
+    """Batched version of patchwise relaxation using CT-Glauber KMC for 2D systems.
     
-    - spins: [B, L, L], batch of 2D spin configurations
-    - T: temperature
-    - patch_size: size of square patches to process
+    Args:
+        spins: [B, L, L], batch of 2D spin configurations
+        T: temperature
+        patch_L: size of square patches to process
+        stride: stride between patch centers
+        h: external field
+        n_events: number of Glauber events per patch (default: patch_L*patch_L)
 
-    - h: external field
-    
-    Returns: [B, L, L] batch of relaxed 2D spin configurations
+    Returns:
+        spins: [B, L, L] batch of relaxed 2D spin configurations
     """
     device = spins.device    
     B, L, _ = spins.shape
@@ -204,12 +206,12 @@ def LocalRelax(
     starts = range(0, L, stride)
     beta = 1.0 / T
     if n_events is None:
-        n_events = patch_size * patch_size
+        n_events = patch_L * patch_L
 
     for i in starts:
         for j in starts:
-            x_indices = torch.arange(i, i + patch_size, device=device) % L
-            y_indices = torch.arange(j, j + patch_size, device=device) % L
+            x_indices = torch.arange(i, i + patch_L, device=device) % L
+            y_indices = torch.arange(j, j + patch_L, device=device) % L
 
             # Extract patches
             patch_spins = spins[:, x_indices[:, None], y_indices[None, :]]      
