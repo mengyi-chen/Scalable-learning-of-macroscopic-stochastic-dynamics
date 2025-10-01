@@ -33,21 +33,15 @@ cd train
 # Train autoencoder for identifying closure variables
 echo "Training autoencoder for identifying closure variables..."
 python closure_modeling.py
+
 # Learn the SDE model for macroscopic dynamics
 echo "Learning the SDE model for macroscopic dynamics..."
-python train_SDE_partial.py --coeff 5 --seed 0
+# python train_SDE_partial.py --coeff 5 --seed 0
 
-# coeff_list=(1 2.5 5 10 20)
-# seed_list=(0 1 2)
-# method=('ours', 'naive')
-
-# for coeff in "${coeff_list[@]}"; do
-#     for seed in "${seed_list[@]}"; do
-#         for m in "${method[@]}"; do
-#             python train_SDE_partial.py --coeff $coeff --seed $seed --method $m &
-#         done
-#     done
-# done
+coeff_list=(1 2.5 5 10 20)
+for coeff in "${coeff_list[@]}"; do
+    python train_SDE_partial.py --coeff $coeff --seed $seed 
+done
 cd ..
 
 echo "Workflow completed successfully!"

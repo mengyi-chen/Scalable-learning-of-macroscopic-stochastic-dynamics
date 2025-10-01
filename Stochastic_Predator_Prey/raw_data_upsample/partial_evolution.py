@@ -23,7 +23,7 @@ def args_parser():
     parser.add_argument('--solver', default=params['solver'], type=str, choices=['euler', 'RK4'])
     parser.add_argument('--seed', default=params['seed'], type=int, help='Random seed')
     parser.add_argument('--n_patch', default=params['n_patch'], type=int, help='Number of parts to divide the grid into')
-    parser.add_argument('--gpu_idx', default=1, type=int, help='GPU index')
+    parser.add_argument('--gpu_idx', default=params['gpu_idx'], type=int, help='GPU index')
     args = parser.parse_args()
     return args
 

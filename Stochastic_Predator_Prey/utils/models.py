@@ -12,11 +12,11 @@ class Autoencoder(nn.Module):
         self.closure_dim = closure_dim
         self.n_patch = n_patch
         assert grid_size % n_patch == 0, "Grid size must be divisible by n_patch"
-        self.patch_size = grid_size // n_patch
+        self.patch_L = grid_size // n_patch
 
         # Encoder
         self.encoder_net = nn.Sequential(
-            nn.Linear(self.patch_size, 32),
+            nn.Linear(self.patch_L, 32),
             nn.ReLU(),
             nn.Linear(32, 32),
             nn.ReLU(),
@@ -66,7 +66,7 @@ class Autoencoder(nn.Module):
 
         # Calculate closure variables
         # \hat{z} = \frac{1}{K} \sum_{I} \hat{z}_{I}
-        x = x.reshape(-1, 2, self.n_patch, self.patch_size) # [B, 2, n_patch, patch_size]
+        x = x.reshape(-1, 2, self.n_patch, self.patch_L) # [B, 2, n_patch, patch_L]
         z_val = self.encoder_net(x)  # [B, 2, n_patch, closure_dim // 2]
         z_val = torch.mean(z_val, dim=2).flatten(1, 2) # [B, closure_dim]
 
@@ -80,7 +80,7 @@ class Autoencoder(nn.Module):
 
         Args:
             x0 (Tensor): Input tensor of shape [B, 2, grid_size]
-            x1 (Tensor): Input tensor of shape [B, 2, grid_size] if partial is False, else [B, 2, patch_size]
+            x1 (Tensor): Input tensor of shape [B, 2, grid_size] if partial is False, else [B, 2, patch_L]
             partial (bool, optional): Whether to use partial encoding. Defaults to False.
             index (Tensor, optional): Indices of the patches to use for partial encoding. Defaults to None.
 
@@ -106,14 +106,14 @@ class Autoencoder(nn.Module):
             # z0 = \varphi(x0)
             z0 = self.encoder(x0)
 
-            x0 = x0.reshape(-1, 2, self.n_patch, self.patch_size)
+            x0 = x0.reshape(-1, 2, self.n_patch, self.patch_L)
             batch_indices = torch.arange(x0.shape[0], device=x0.device)
 
             # $x_{0, I}$
-            x0_partial = x0[batch_indices, :, index] # [B, 2, patch_size]
+            x0_partial = x0[batch_indices, :, index] # [B, 2, patch_L]
 
             # $x_{1, I}$
-            x1_partial = x1 # [B, 2, patch_size]
+            x1_partial = x1 # [B, 2, patch_L]
         
             z0_macro_partial = self.cal_macro(x0_partial) # [B, 2]
             z1_macro_partial = self.cal_macro(x1_partial) # [B, 2] 

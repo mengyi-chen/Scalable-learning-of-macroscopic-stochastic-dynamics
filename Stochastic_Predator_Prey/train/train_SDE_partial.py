@@ -19,17 +19,21 @@ from utils.utils import set_seed
 import warnings
 warnings.filterwarnings("ignore")
 torch.set_default_dtype(torch.float32)
+import yaml
 
+# Load parameters from YAML configuration file
+with open('../config/config.yaml', 'r') as file:
+    params = yaml.safe_load(file)
 
 # General arguments
 parser = argparse.ArgumentParser(description='Identify macroscopic dynamics')
-parser.add_argument('--gpu_idx', default=5, type=int, help='GPU index')
-parser.add_argument('--seed', default=42, type=int, help='Random seed')
-parser.add_argument('--n_dim', default=4, type=int, help='latent dimension')
+parser.add_argument('--gpu_idx', default=params['gpu_idx'], type=int, help='GPU index')
+parser.add_argument('--seed', default=0, type=int, help='Random seed')
+parser.add_argument('--n_dim', default=params['n_dim'], type=int, help='latent dimension')
 parser.add_argument('--n', default=200, type=int, help='number of grid points for the large system')
 parser.add_argument('--n_s', default=40, type=int, help='number of grid points within each patch')
-parser.add_argument('--dt', default=0.1, type=float, help='time step')
-parser.add_argument('--n_patch', default=5, type=int, help='Number of parts to divide the grid into')
+parser.add_argument('--dt', default=params['dt'], type=float, help='time step')
+parser.add_argument('--n_patch', default=params['n_patch'], type=int, help='Number of parts to divide the grid into')
 # training parameters
 parser.add_argument('--train_bs', default=1024, type=int, help='batch size for training')
 parser.add_argument('--val_bs', default=1024, type=int, help='batch size for validation')

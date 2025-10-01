@@ -26,7 +26,7 @@ with open('../config/config.yaml', 'r') as file:
 parser = argparse.ArgumentParser(description='Autoencoder')
 parser.add_argument('--macro_dim', default=params['macro_dim'], type=int, help='Dimension of macroscopic variables')
 parser.add_argument('--closure_dim', default=params['closure_dim'], type=int, help='Dimension of closure variables')
-parser.add_argument('--gpu_idx', default=2, type=int, help='GPU index')
+parser.add_argument('--gpu_idx', default=params['gpu_idx'], type=int, help='GPU index')
 parser.add_argument('--input_dim', default=200, type=int, help='Input dimension')
 parser.add_argument('--train_bs', default=256, type=int, help='Batch size for training')
 parser.add_argument('--num_epoch', default=10, type=int, help='Number of training epochs')
