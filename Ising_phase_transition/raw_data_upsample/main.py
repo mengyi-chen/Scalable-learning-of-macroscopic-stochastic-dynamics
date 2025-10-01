@@ -19,7 +19,7 @@ def args_parser():
     parser.add_argument('--L_small', type=int, default=64, help="Length of the small lattice: L")
     parser.add_argument('--L_large', type=int, default=64, help="Length of the large lattice: L")
     parser.add_argument('--patch_size', type=int, default=16, help="Size of the patches: patch_size")
-    parser.add_argument('--box_L', type=int, default=16, help="Length of the box: box_L")
+    parser.add_argument('--patch_L', type=int, default=16, help="Length of the box: patch_L")
     parser.add_argument('--N_target_train', type=int, default=400000, help="number of target data")
     parser.add_argument('--N_target_val', type=int, default=40000, help="number of validation data")
     parser.add_argument('--batch_size', type=int, default=5000, help="number of validation data")
@@ -94,7 +94,7 @@ if __name__ == "__main__":
     # print('X0_val shape:', X0_val.shape)
 
 
-    d = int(args.L_large // args.box_L)
+    d = int(args.L_large // args.patch_L)
 
     X1_train_partial = []
     time_step_train = []
@@ -102,13 +102,13 @@ if __name__ == "__main__":
     for i in tqdm(range(X0_train.shape[0])):
         tra = X0_train[i] # [3200, 64, 64]
 
-        tra = tra.reshape(-1, d, args.box_L, d, args.box_L)
+        tra = tra.reshape(-1, d, args.patch_L, d, args.patch_L)
         tra = tra.permute(0, 1, 3, 2, 4) # [3200, 2, 2, 32, 32]
         tra = tra.flatten(1, 2) # [3200, 4, 32, 32]
         idx = torch.randint(0, d ** 2, (tra.shape[0],), device=tra.device)
         
         tra_partial = tra[torch.arange(tra.shape[0]), idx] # [3200, 32, 32]
-        tra_dt_partial, glauber_time = glauber_continuous(tra_partial, args.box_L, 1.0 / args.T, args.h)
+        tra_dt_partial, glauber_time = glauber_continuous(tra_partial, args.patch_L, 1.0 / args.T, args.h)
 
         X1_train_partial.append(tra_dt_partial)
         time_step_train.append(glauber_time)

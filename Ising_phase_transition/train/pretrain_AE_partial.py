@@ -26,11 +26,11 @@ set_seed(0)
 # General arguments
 parser = argparse.ArgumentParser(description='Autoencoder Pretraining')
 parser.add_argument('--gpu_idx', default=7, type=int)
-parser.add_argument('--box_L', default=16, type=int)
+parser.add_argument('--patch_L', default=16, type=int)
 parser.add_argument('--L', default=128, type=int)
 parser.add_argument('--Task_NAME', default='ising', type=str)
 parser.add_argument('--MACRO_DIM', default=2, type=int)
-parser.add_argument('--HIDDEN_DIM', default=2, type=int)
+parser.add_argument('--closure_dim', default=2, type=int)
 parser.add_argument('--seed', default=42, type=int)
 parser.add_argument('--epoch', default=10, type=int)
 parser.add_argument('--batch_size', default=512, type=int)
@@ -46,21 +46,21 @@ class Trainer():
         set_seed(args.seed)
         self.args = args
         self.device = torch.device(f"cuda:{args.gpu_idx}") if torch.cuda.is_available() else torch.device('cpu')
-        self.d = int(args.L / args.box_L)
+        self.d = int(args.L / args.patch_L)
 
         
         self.data_path = f'../raw_data/L{args.L}_MC32000_h{args.h}_T{args.T:.2f}'
-        self.data_path_upscaled = f'../raw_data_upscale/scaleup_L{args.L}_h{args.h}_T{args.T:.2f}'
+        self.data_path_upscaled = f'../raw_data_upsample/scaleup_L{args.L}_h{args.h}_T{args.T:.2f}'
 
         start_message = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Initializing."
         print(start_message)
 
         date = datetime.now().strftime('%Y_%m_%d_%H:%M:%S')
-        self.folder = os.path.join(f'../checkpoints_T_{args.T:.2f}',f'AE_{args.Task_NAME}_epoch_{args.epoch}_box_L_{args.box_L}_L_{args.L}_{date}')
+        self.folder = os.path.join(f'../checkpoints_T_{args.T:.2f}',f'AE_{args.Task_NAME}_epoch_{args.epoch}_patch_L_{args.patch_L}_L_{args.L}_{date}')
         if not os.path.exists(self.folder):
            os.makedirs(self.folder, exist_ok=True) 
         
-        self.save_path = os.path.join('../data', f'{args.Task_NAME}_box_L_{args.box_L}_L_{args.L}_T_{args.T:.2f}')
+        self.save_path = os.path.join('../data', f'{args.Task_NAME}_patch_L_{args.patch_L}_L_{args.L}_T_{args.T:.2f}')
         if not os.path.exists(self.save_path):
             os.makedirs(self.save_path, exist_ok=True)
 
@@ -82,14 +82,14 @@ class Trainer():
         self.load_data()
         
         if args.epoch == 0:
-            ckpt_path = f'../checkpoints_T_{args.T:.2f}/AE_ising_epoch_10_box_L_{args.box_L}_L_{args.L}/model.pt'
+            ckpt_path = f'../checkpoints_T_{args.T:.2f}/AE_ising_epoch_10_patch_L_{args.patch_L}_L_{args.L}/model.pt'
             if os.path.exists(ckpt_path):
                 print(f"Loading model from {ckpt_path}")
-                self.model = torch.load(f'../checkpoints_T_{args.T:.2f}/AE_ising_epoch_10_box_L_{args.box_L}_L_{args.L}/model.pt', map_location=self.device)
+                self.model = torch.load(f'../checkpoints_T_{args.T:.2f}/AE_ising_epoch_10_patch_L_{args.patch_L}_L_{args.L}/model.pt', map_location=self.device)
             else:
-                self.model = Conv2DAutoencoder(args.HIDDEN_DIM, args.MACRO_DIM, args.L, args.box_L, args.h).to(self.device)
+                self.model = Conv2DAutoencoder(args.closure_dim, args.MACRO_DIM, args.L, args.patch_L, args.h).to(self.device)
         else:
-            self.model = Conv2DAutoencoder(args.HIDDEN_DIM, args.MACRO_DIM, args.L, args.box_L, args.h).to(self.device)
+            self.model = Conv2DAutoencoder(args.closure_dim, args.MACRO_DIM, args.L, args.patch_L, args.h).to(self.device)
             
         print('*********model structure**********')
         print(self.model)
@@ -213,8 +213,8 @@ class Trainer():
             # ========== save latent ==============
 
             # NOTE
-            min_val = torch.zeros(self.args.MACRO_DIM + self.args.HIDDEN_DIM, device=self.device)
-            max_val = torch.ones(self.args.MACRO_DIM + self.args.HIDDEN_DIM, device=self.device)
+            min_val = torch.zeros(self.args.MACRO_DIM + self.args.closure_dim, device=self.device)
+            max_val = torch.ones(self.args.MACRO_DIM + self.args.closure_dim, device=self.device)
             self.model.encoder.min_val.copy_(min_val)
             self.model.encoder.max_val.copy_(max_val)
 
@@ -234,8 +234,8 @@ class Trainer():
             z0_train = torch.stack(z0_train)
             z1_train_partial = torch.stack(z1_train_partial)
 
-            print('z0_train shape:', z0_train.shape) # [n_tra, length_per_tra, macro_dim + hidden_dim]
-            print('z1_train_partial shape:', z1_train_partial.shape) # [n_tra, length_per_tra, macro_dim + hidden_dim]
+            print('z0_train shape:', z0_train.shape) # [n_tra, length_per_tra, macro_dim + closure_dim]
+            print('z1_train_partial shape:', z1_train_partial.shape) # [n_tra, length_per_tra, macro_dim + closure_dim]
 
             # # ========== val latent ==============
     
@@ -252,8 +252,8 @@ class Trainer():
             z0_val = torch.stack(z0_val)
             z1_val = torch.stack(z1_val)
 
-            print('z0_val shape:', z0_val.shape) # [n_tra, length_per_tra, macro_dim + hidden_dim]
-            print('z1_val shape:', z1_val.shape) # [n_tra, length_per_tra, macro_dim + hidden_dim]
+            print('z0_val shape:', z0_val.shape) # [n_tra, length_per_tra, macro_dim + closure_dim]
+            print('z1_val shape:', z1_val.shape) # [n_tra, length_per_tra, macro_dim + closure_dim]
 
             
             min_val, max_val = torch.amin(z0_val[..., 1:], dim=(0, 1)), torch.amax(z0_val[..., 1:], dim=(0, 1))
@@ -298,7 +298,7 @@ class Trainer():
         else:
             num_plots = 5
         fig = plt.figure(figsize=(8 * num_plots, 6))
-        plot = latent.detach().cpu().numpy() # [n_tra, length_per_tra, hidden_dim]
+        plot = latent.detach().cpu().numpy() # [n_tra, length_per_tra, closure_dim]
         t = np.arange(plot.shape[1]) * dt 
         for idx in range(num_plots):
             axes = fig.add_subplot(1, num_plots, idx + 1)

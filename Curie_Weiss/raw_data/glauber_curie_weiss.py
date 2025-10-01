@@ -12,7 +12,7 @@ import numpy as np
 from numba import njit
 
 @njit
-def _glauberCW(spin, L, beta, h=0.0):
+def _glauberCW_continuous(spin, L, beta, h=0.0):
     """Perform one sweep of Continuous-time Glauber dynamics for the Curie-Weiss model.
 
     Args:
@@ -200,7 +200,7 @@ class Glauber2DCW:
             M1_list.append(M)
             config_list.append(spin.copy())
             
-            _, delta_t = _glauberCW(spin, self.L, beta, h=self.h)
+            _, delta_t = _glauberCW_continuous(spin, self.L, beta, h=self.h)
             kmc_time.append(kmc_time[-1] + delta_t)
 
         # Monte Carlo steps
@@ -218,7 +218,7 @@ class Glauber2DCW:
             E2 += E ** 2 / self.mcstep
             M2 += M ** 2 / self.mcstep
 
-            _, delta_t = _glauberCW(spin, self.L, beta, h=self.h)
+            _, delta_t = _glauberCW_continuous(spin, self.L, beta, h=self.h)
             kmc_time.append(kmc_time[-1] + delta_t)
 
         config_list = np.array(config_list)

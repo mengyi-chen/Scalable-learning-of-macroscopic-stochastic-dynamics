@@ -69,12 +69,12 @@ def main():
             U_list = []
             for path in ckpt_paths: 
                 model = torch.load(path, map_location=device)
-                z0_val = torch.load(f'../data/ising_box_L_16_L_{L}_T_{T}/z0_val.pt', map_location=device)
-                z0_train = torch.load(f'../data/ising_box_L_16_L_{L}_T_{T}/z0_train.pt', map_location=device)
+                z0_val = torch.load(f'../data/ising_patch_L_16_L_{L}_T_{T}/z0_val.pt', map_location=device)
+                z0_train = torch.load(f'../data/ising_patch_L_16_L_{L}_T_{T}/z0_train.pt', map_location=device)
                 if L == 16:
                     train_dt = torch.load(f'../raw_data/L{L}_MC32000_h0.0_T{T}/time_step_train_partial.pt', map_location=device)
                 else:
-                    train_dt = torch.load(f'../raw_data_upscale/scaleup_L{L}_h0.0_T{T}/time_step_train_partial.pt', map_location=device)
+                    train_dt = torch.load(f'../raw_data_upsample/scaleup_L{L}_h0.0_T{T}/time_step_train_partial.pt', map_location=device)
 
                 val_dt = torch.load(f'../raw_data/L{L}_MC32000_h0.0_T{T}/time_step_val.pt', map_location=device)
                 mean_train_dt = torch.mean(train_dt)

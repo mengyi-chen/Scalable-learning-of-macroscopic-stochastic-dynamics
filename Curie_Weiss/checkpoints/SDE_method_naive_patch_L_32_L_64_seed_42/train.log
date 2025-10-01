@@ -1,0 +1,119 @@
+INFO Training log for Curie-Weiss model
+INFO 2025-09-30 22:55:43: Initializing.
+INFO gpu_idx:2
+INFO seed:42
+INFO n_dim:1
+INFO L:64
+INFO patch_L:32
+INFO h:0.1
+INFO T:1.1
+INFO train_bs:1024
+INFO val_bs:1024
+INFO num_epoch:100
+INFO patience:5
+INFO lr:0.01
+INFO mode:constant_diagonal
+INFO epsilon:0.0001
+INFO coeff:None
+INFO method:naive
+INFO 2025-09-30 22:55:43: Training started.
+INFO 2025-09-30 22:55:46: Training epoch 1, training mse:-3.5806365583415087, val mse:0.9683646410703659, lr:0.01
+INFO 2025-09-30 22:55:48: Training epoch 2, training mse:-5.908975265464004, val mse:-6.175022125244141, lr:0.01
+INFO 2025-09-30 22:55:50: Training epoch 3, training mse:-5.900695584258255, val mse:-6.202549457550049, lr:0.01
+INFO 2025-09-30 22:55:52: Training epoch 4, training mse:-5.905460761517895, val mse:-6.2277512550354, lr:0.01
+INFO 2025-09-30 22:55:54: Training epoch 5, training mse:-5.903921553066799, val mse:-6.186671853065491, lr:0.01
+INFO 2025-09-30 22:55:55: Training epoch 6, training mse:-5.906604448143317, val mse:-6.165466785430908, lr:0.01
+INFO 2025-09-30 22:55:57: Training epoch 7, training mse:-5.894390938233356, val mse:-6.13787567615509, lr:0.01
+INFO 2025-09-30 22:55:59: Training epoch 8, training mse:-5.89881305062041, val mse:-6.259137988090515, lr:0.01
+INFO 2025-09-30 22:56:01: Training epoch 9, training mse:-5.917039185154195, val mse:-6.255303978919983, lr:0.005
+INFO 2025-09-30 22:56:03: Training epoch 10, training mse:-5.918931498819468, val mse:-6.221981883049011, lr:0.005
+INFO 2025-09-30 22:56:05: Training epoch 11, training mse:-5.9155261078659365, val mse:-6.2226773500442505, lr:0.005
+INFO 2025-09-30 22:56:07: Training epoch 12, training mse:-5.914743058535517, val mse:-6.247569680213928, lr:0.005
+INFO 2025-09-30 22:56:09: Training epoch 13, training mse:-5.9181976318359375, val mse:-6.182277679443359, lr:0.005
+INFO 2025-09-30 22:56:11: Training epoch 14, training mse:-5.9173649062915725, val mse:-6.2250648736953735, lr:0.005
+INFO 2025-09-30 22:56:13: Training epoch 15, training mse:-5.918324833013574, val mse:-6.193441152572632, lr:0.005
+INFO 2025-09-30 22:56:15: Training epoch 16, training mse:-5.917554728838862, val mse:-6.228078722953796, lr:0.005
+INFO 2025-09-30 22:56:17: Training epoch 17, training mse:-5.920982258660453, val mse:-6.2474164962768555, lr:0.0025
+INFO 2025-09-30 22:56:19: Training epoch 18, training mse:-5.921362521697064, val mse:-6.231576323509216, lr:0.0025
+INFO 2025-09-30 22:56:21: Training epoch 19, training mse:-5.921032397114501, val mse:-6.207545518875122, lr:0.0025
+INFO 2025-09-30 22:56:23: Training epoch 20, training mse:-5.9207001024362995, val mse:-6.221639275550842, lr:0.0025
+INFO 2025-09-30 22:56:25: Training epoch 21, training mse:-5.921625390344737, val mse:-6.230705618858337, lr:0.0025
+INFO 2025-09-30 22:56:27: Training epoch 22, training mse:-5.920523784598526, val mse:-6.229736685752869, lr:0.0025
+INFO 2025-09-30 22:56:29: Training epoch 23, training mse:-5.920539680792361, val mse:-6.229534983634949, lr:0.0025
+INFO 2025-09-30 22:56:31: Training epoch 24, training mse:-5.922461436719311, val mse:-6.1788811683654785, lr:0.0025
+INFO 2025-09-30 22:56:33: Training epoch 25, training mse:-5.921275085332442, val mse:-6.221086025238037, lr:0.0025
+INFO 2025-09-30 22:56:35: Training epoch 26, training mse:-5.9207152274190165, val mse:-6.2367295026779175, lr:0.0025
+INFO 2025-09-30 22:56:37: Training epoch 27, training mse:-5.921296423795272, val mse:-6.21081018447876, lr:0.0025
+INFO 2025-09-30 22:56:39: Training epoch 28, training mse:-5.920706191841437, val mse:-6.223015189170837, lr:0.0025
+INFO 2025-09-30 22:56:41: Training epoch 29, training mse:-5.922168580853209, val mse:-6.219369411468506, lr:0.0025
+INFO 2025-09-30 22:56:43: Training epoch 30, training mse:-5.920525120229137, val mse:-6.2208662033081055, lr:0.0025
+INFO 2025-09-30 22:56:45: Training epoch 31, training mse:-5.919995670415918, val mse:-6.226660847663879, lr:0.0025
+INFO 2025-09-30 22:56:46: Training epoch 32, training mse:-5.919761582296722, val mse:-6.195775866508484, lr:0.0025
+INFO 2025-09-30 22:56:48: Training epoch 33, training mse:-5.920446536978897, val mse:-6.225321173667908, lr:0.0025
+INFO 2025-09-30 22:56:50: Training epoch 34, training mse:-5.921887733498398, val mse:-6.225699782371521, lr:0.0025
+INFO 2025-09-30 22:56:52: Training epoch 35, training mse:-5.919530274916668, val mse:-6.248043060302734, lr:0.0025
+INFO 2025-09-30 22:56:54: Training epoch 36, training mse:-5.921004195602572, val mse:-6.19436776638031, lr:0.0025
+INFO 2025-09-30 22:56:56: Training epoch 37, training mse:-5.9205337714175785, val mse:-6.200266361236572, lr:0.0025
+INFO 2025-09-30 22:56:58: Training epoch 38, training mse:-5.921456239661392, val mse:-6.226693630218506, lr:0.0025
+INFO 2025-09-30 22:57:00: Training epoch 39, training mse:-5.921153681618827, val mse:-6.202414512634277, lr:0.0025
+INFO 2025-09-30 22:57:02: Training epoch 40, training mse:-5.922041914900955, val mse:-6.220563054084778, lr:0.0025
+INFO 2025-09-30 22:57:04: Training epoch 41, training mse:-5.921871321541922, val mse:-6.217085480690002, lr:0.0025
+INFO 2025-09-30 22:57:06: Training epoch 42, training mse:-5.9219635238452835, val mse:-6.22879159450531, lr:0.0025
+INFO 2025-09-30 22:57:08: Training epoch 43, training mse:-5.919684373602575, val mse:-6.219567775726318, lr:0.0025
+INFO 2025-09-30 22:57:10: Training epoch 44, training mse:-5.920667378269896, val mse:-6.2403353452682495, lr:0.0025
+INFO 2025-09-30 22:57:12: Training epoch 45, training mse:-5.921013982928529, val mse:-6.230013370513916, lr:0.0025
+INFO 2025-09-30 22:57:14: Training epoch 46, training mse:-5.918725103748088, val mse:-6.2325804233551025, lr:0.0025
+INFO 2025-09-30 22:57:16: Training epoch 47, training mse:-5.920142446245466, val mse:-6.242913722991943, lr:0.0025
+INFO 2025-09-30 22:57:18: Training epoch 48, training mse:-5.919769603378919, val mse:-6.233071327209473, lr:0.0025
+INFO 2025-09-30 22:57:20: Training epoch 49, training mse:-5.9228755576269965, val mse:-6.220774412155151, lr:0.00125
+INFO 2025-09-30 22:57:21: Training epoch 50, training mse:-5.923950550507526, val mse:-6.227383732795715, lr:0.00125
+INFO 2025-09-30 22:57:23: Training epoch 51, training mse:-5.92344318847267, val mse:-6.240263223648071, lr:0.00125
+INFO 2025-09-30 22:57:26: Training epoch 52, training mse:-5.923231772014073, val mse:-6.232957243919373, lr:0.00125
+INFO 2025-09-30 22:57:27: Training epoch 53, training mse:-5.922945820555395, val mse:-6.217257618904114, lr:0.00125
+INFO 2025-09-30 22:57:29: Training epoch 54, training mse:-5.922514341315445, val mse:-6.204474091529846, lr:0.00125
+INFO 2025-09-30 22:57:31: Training epoch 55, training mse:-5.92322991088945, val mse:-6.214085340499878, lr:0.00125
+INFO 2025-09-30 22:57:33: Training epoch 56, training mse:-5.923254059285534, val mse:-6.2413798570632935, lr:0.00125
+INFO 2025-09-30 22:57:35: Training epoch 57, training mse:-5.922831666712859, val mse:-6.236860871315002, lr:0.00125
+INFO 2025-09-30 22:57:37: Training epoch 58, training mse:-5.923305178175167, val mse:-6.21451210975647, lr:0.00125
+INFO 2025-09-30 22:57:39: Training epoch 59, training mse:-5.9232637298350435, val mse:-6.222318768501282, lr:0.00125
+INFO 2025-09-30 22:57:41: Training epoch 60, training mse:-5.92353452468405, val mse:-6.238181948661804, lr:0.00125
+INFO 2025-09-30 22:57:43: Training epoch 61, training mse:-5.923281187913855, val mse:-6.223281145095825, lr:0.00125
+INFO 2025-09-30 22:57:45: Training epoch 62, training mse:-5.923219639427808, val mse:-6.226693630218506, lr:0.00125
+INFO 2025-09-30 22:57:47: Training epoch 63, training mse:-5.922673293522426, val mse:-6.2357693910598755, lr:0.00125
+INFO 2025-09-30 22:57:49: Training epoch 64, training mse:-5.923379136591541, val mse:-6.241896152496338, lr:0.00125
+INFO 2025-09-30 22:57:51: Training epoch 65, training mse:-5.923089302316004, val mse:-6.231995224952698, lr:0.00125
+INFO 2025-09-30 22:57:53: Training epoch 66, training mse:-5.923973803617517, val mse:-6.219354748725891, lr:0.00125
+INFO 2025-09-30 22:57:55: Training epoch 67, training mse:-5.923304983547756, val mse:-6.221057653427124, lr:0.00125
+INFO 2025-09-30 22:57:56: Training epoch 68, training mse:-5.922906683415783, val mse:-6.21253502368927, lr:0.00125
+INFO 2025-09-30 22:57:58: Training epoch 69, training mse:-5.92292900474704, val mse:-6.221769690513611, lr:0.00125
+INFO 2025-09-30 22:58:00: Training epoch 70, training mse:-5.923217094674403, val mse:-6.2421547174453735, lr:0.00125
+INFO 2025-09-30 22:58:02: Training epoch 71, training mse:-5.921255053306113, val mse:-6.214767932891846, lr:0.00125
+INFO 2025-09-30 22:58:04: Training epoch 72, training mse:-5.922467616139626, val mse:-6.230055570602417, lr:0.00125
+INFO 2025-09-30 22:58:06: Training epoch 73, training mse:-5.923408503435096, val mse:-6.21072256565094, lr:0.000625
+INFO 2025-09-30 22:58:08: Training epoch 74, training mse:-5.92421247277941, val mse:-6.226928949356079, lr:0.000625
+INFO 2025-09-30 22:58:10: Training epoch 75, training mse:-5.92418757263495, val mse:-6.215452313423157, lr:0.000625
+INFO 2025-09-30 22:58:12: Training epoch 76, training mse:-5.923532911709377, val mse:-6.221748471260071, lr:0.000625
+INFO 2025-09-30 22:58:14: Training epoch 77, training mse:-5.923774062370767, val mse:-6.233592391014099, lr:0.000625
+INFO 2025-09-30 22:58:16: Training epoch 78, training mse:-5.923895813980881, val mse:-6.222073674201965, lr:0.000625
+INFO 2025-09-30 22:58:18: Training epoch 79, training mse:-5.923751840786058, val mse:-6.220489859580994, lr:0.000625
+INFO 2025-09-30 22:58:20: Training epoch 80, training mse:-5.923855423927307, val mse:-6.225560307502747, lr:0.000625
+INFO 2025-09-30 22:58:22: Training epoch 81, training mse:-5.92410299972612, val mse:-6.228301525115967, lr:0.000625
+INFO 2025-09-30 22:58:24: Training epoch 82, training mse:-5.923471737881096, val mse:-6.225632548332214, lr:0.000625
+INFO 2025-09-30 22:58:26: Training epoch 83, training mse:-5.924340311361819, val mse:-6.2274733781814575, lr:0.000625
+INFO 2025-09-30 22:58:28: Training epoch 84, training mse:-5.924137458509328, val mse:-6.218207836151123, lr:0.000625
+INFO 2025-09-30 22:58:30: Training epoch 85, training mse:-5.923587808803636, val mse:-6.224172949790955, lr:0.000625
+INFO 2025-09-30 22:58:32: Training epoch 86, training mse:-5.923897694568245, val mse:-6.218023061752319, lr:0.000625
+INFO 2025-09-30 22:58:34: Training epoch 87, training mse:-5.924012369039107, val mse:-6.226977229118347, lr:0.000625
+INFO 2025-09-30 22:58:35: Training epoch 88, training mse:-5.924563639018, val mse:-6.218783497810364, lr:0.000625
+INFO 2025-09-30 22:58:37: Training epoch 89, training mse:-5.923995910858621, val mse:-6.206275939941406, lr:0.000625
+INFO 2025-09-30 22:58:39: Training epoch 90, training mse:-5.924345593063199, val mse:-6.221549868583679, lr:0.000625
+INFO 2025-09-30 22:58:41: Training epoch 91, training mse:-5.9243999743948175, val mse:-6.220863461494446, lr:0.000625
+INFO 2025-09-30 22:58:43: Training epoch 92, training mse:-5.923594229075373, val mse:-6.218258023262024, lr:0.000625
+INFO 2025-09-30 22:58:45: Training epoch 93, training mse:-5.923831251202797, val mse:-6.220884323120117, lr:0.000625
+INFO 2025-09-30 22:58:47: Training epoch 94, training mse:-5.923659412228331, val mse:-6.220024228096008, lr:0.000625
+INFO 2025-09-30 22:58:49: Training epoch 95, training mse:-5.924202398378021, val mse:-6.227868318557739, lr:0.000625
+INFO 2025-09-30 22:58:51: Training epoch 96, training mse:-5.924065424471485, val mse:-6.232846736907959, lr:0.000625
+INFO 2025-09-30 22:58:53: Training epoch 97, training mse:-5.92383370107534, val mse:-6.221863150596619, lr:0.000625
+INFO 2025-09-30 22:58:55: Training epoch 98, training mse:-5.92427058122596, val mse:-6.226135849952698, lr:0.000625
+INFO 2025-09-30 22:58:57: Training epoch 99, training mse:-5.923243089598053, val mse:-6.216534733772278, lr:0.000625
+INFO 2025-09-30 22:58:59: Training epoch 100, training mse:-5.924732833492513, val mse:-6.222198486328125, lr:0.000625

@@ -37,8 +37,7 @@ echo "Learning the SDE model for macroscopic dynamics..."
 python train_SDE_partial.py --patch_L 16 --method ours
 
 # patch_L_list=(8 16 32 64)
-# method=('ours', 'naive')
-
+# method=('ours' 'naive')
 # for patch_L in "${patch_L_list[@]}"; do
 #     for m in "${method[@]}"; do
 #         python train_SDE_partial.py --patch_L $patch_L --method $m 

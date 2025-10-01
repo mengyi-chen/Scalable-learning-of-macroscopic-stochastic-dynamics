@@ -11,21 +11,23 @@ import multiprocessing as mp
 import matplotlib.pyplot as plt
 from contextlib import contextmanager
 from glauber2d_ising import Glauber2DIsing
-# from glauber2d import Glauber2DIsing
 import seaborn as sns
-from sklearn.model_selection import train_test_split
+import yaml
+# Load parameters from YAML configuration file
+with open('../config/config.yaml', 'r') as file:
+    params = yaml.safe_load(file)
 
 def args_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--L', type=int, default=64, help="Length of the lattice: L")
-    parser.add_argument('--T', type=float, default=2.27, help="Temperature")
-    parser.add_argument('--h', type=float, default=0.0, help="externel field strength")
-    parser.add_argument('--steps', type=int, default=32000, help="Number of glauber dynamics steps")
-    # parser.add_argument('--dt', type=float, default=0.1, help="Time step of glauber dynamics")
-    parser.add_argument('--save_interval', type=int, default=10, help="Interval of saving the microscopic configuration")
-    parser.add_argument('--seed', type=int, default=0, help='Random seed (default: 0)')
-    parser.add_argument('--num_run', type=int, default=50, help='')
-    parser.add_argument('--n_proc', type=int, default=50, help="Number of processors for multiprocessing")
+    parser.add_argument('--L', type=int, default=params['L'], help="Length of the lattice: L")
+    parser.add_argument('--T', type=float, default=params['T'], help="Temperature")
+    parser.add_argument('--h', type=float, default=params['h'], help="externel field strength")
+    parser.add_argument('--steps', type=int, default=params['steps'], help="Number of glauber dynamics steps")
+    parser.add_argument('--seed', type=int, default=params['seed'], help='Random seed (default: 0)')
+    parser.add_argument('--num_run', type=int, default=params['num_run'], help='Number of independent runs (default: 100)')
+    parser.add_argument('--n_proc', type=int, default=params['n_proc'], help="Number of processors for multiprocessing")
+    parser.add_argument('--mag', type=float, default=None, help="Target magnetization")
+    parser.add_argument('--data_mode', type=str, choices=['train', 'val', 'test'], default='train', help="Mode of the data: train, val, or test")
     args = parser.parse_args()
     return args
 
@@ -90,7 +92,12 @@ if __name__ == "__main__":
     print('mean of X:', np.mean(Xs))
 
     # ========= save the microscopic configuration data =========
-    rootpath = f'./L{args.L}_MC{args.steps}_h{args.h}_T{args.T:.2f}'
+
+    if args.mag is None:
+        rootpath = f'./L{args.L}_MC{args.steps}_h{args.h}_T{args.T:.2f}'
+    else:
+        rootpath = f'./L{args.L}_MC{args.steps}_h{args.h}_T{args.T:.2f}_mag{args.mag}'
+
     if not os.path.exists(rootpath):  
         os.makedirs(rootpath)
 
@@ -99,16 +106,28 @@ if __name__ == "__main__":
     print('config_time shape:', config_time.shape)
 
     X0 = config_time
-
-    X0_train, X0_val = train_test_split(X0, test_size=0.2, random_state=args.seed)
-    print('X0_train shape:', X0_train.shape)
-    print('X0_val shape:', X0_val.shape)
-
-    if args.L == 16:
-        torch.save(X0_train, os.path.join(rootpath, 'X0_train.pt')) 
-    torch.save(X0_val, os.path.join(rootpath, 'X0_val.pt'))
     
-    # ========= plot =========
+    save_name = {'train': 'X0.pt', 'val': 'X0_val.pt', 'test': 'X0_test.pt'}
+    torch.save(X0, os.path.join(rootpath, save_name[args.data_mode]))
+    np.save(os.path.join(rootpath, 'kmc_times.npy'), kmc_times)
+
+    if args.data_mode == 'val':
+        X0_val = X0
+        X1_val = []
+        time_step_val = []
+        for i in tqdm(range(X0_val.shape[0])):
+            tra = X0_val[i].clone() # [B, L, L]
+            tra_dt, glauber_time = glauber_continuous_Ising(tra.clone(), 1.0 / args.T, args.h)
+            X1_val.append(tra_dt)
+            time_step_val.append(glauber_time)
+
+        X1_val = torch.stack(X1_val)
+        time_step_val = torch.stack(time_step_val)
+
+        torch.save(X1_val, os.path.join(rootpath, f'X1_val.pt'))
+        torch.save(time_step_val, os.path.join(rootpath, f'time_step_val.pt'))
+
+    # ========= Visualization =========
     Ms_time = np.array(Ms_time, dtype=np.float32)
     fig = plt.figure(figsize=(12, 3))
     axes = fig.add_subplot(1, 1, 1)
@@ -139,7 +158,6 @@ if __name__ == "__main__":
 
     torch.save(torch.tensor(M, dtype=torch.float32), os.path.join(rootpath, 'M_equilibrium.pt'))
     np.save(os.path.join(rootpath, 'M_equilibrium.npy'), M)
-    # sns.histplot(M, bins=50, kde=True, stat="density", color='orange', label='Histogram', alpha=0.5)
     sns.kdeplot(M, fill=False, bw_adjust=2.5, cut=0)
     plt.xlim(-1, 1)  # Set x-axis limits for magnetization range
     plt.xlabel("Magnetization", fontsize=20)

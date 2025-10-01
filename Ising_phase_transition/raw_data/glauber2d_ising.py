@@ -5,9 +5,20 @@ from numba import prange
 import time, os 
 
 @numba.jit(nopython=True)
-def _glauber(spin, L, beta, h=0):
-    
-    
+def _glauber_discrete(spin, L, beta, h=0):
+    """Perform one sweep of Discrete-time Glauber dynamics for the Ising model.
+
+    Args:
+        spin (numpy.ndarray): 2D array of shape [L, L] with values -1 or +1.
+        L (int): Length of the lattice.
+        beta (float): Inverse temperature (1/k_B T).
+        h (float, optional): External magnetic field strength. Defaults to 0.0. 
+
+    Returns:
+        numpy.ndarray: Updated spin configuration.
+        float: Time increment for the KMC simulation.
+    """
+
     for x in range(L):
         for y in range(L):
             s = spin[x, y]
@@ -27,36 +38,61 @@ def _glauber(spin, L, beta, h=0):
 
 
 class Glauber2DIsing:
+    """Glauber dynamics for 2D Ising model with periodic boundary conditions.
+    """
     def __init__(self, args):
         self.L = args.L
         self.steps = args.steps
         self.eqstep = args.steps // 2
         self.mcstep = args.steps // 2
         self.area = self.L ** 2
+        self.mag = args.mag
 
     def _init_spin(self):
-        # Choose initial magnetization uniformly from [-1, 1]
-        # return 2 * np.random.randint(2, size=(self.L, self.L)) - 1
-        initial_mag = 2 * np.random.rand() - 1
+        """Initialize the spin configuration.
+
+        Returns:
+            np.ndarray: 2D array representing the initial spin configuration.
+        """
         
-        total_spins = self.area
-        n_up = int((1 + initial_mag) * total_spins / 2)
-        n_down = total_spins - n_up
-        
+        if self.mag == None:
+            # Random initialization
+            initial_mag = 2 * np.random.rand() - 1
+            num_up = int((1 + initial_mag) * self.area / 2)
+        else:
+            num_up = int((1 + self.mag) * self.area / 2)
+            
         # Create initial spin configuration
-        spins = np.concatenate([np.ones(n_up), -np.ones(n_down)])
+        num_down = self.area - num_up
+        spins = np.concatenate([np.ones(num_up), -np.ones(num_down)])
         np.random.shuffle(spins)
-        
-        return spins.reshape((self.L, self.L))
+
+        return spins.reshape(self.L, self.L)  # 2D reshape
 
     # Calculate energy using neighbors
     def _calc_energy(self, spin):
+        """Calculate the energy of the system.
+
+        Args:
+            spin (numpy.ndarray): 2D array of shape [L, L] with values -1 or +1.
+
+        Returns:
+            float: energy
+        """
         R = np.roll(spin, 1, axis=0) + np.roll(spin, -1, axis=0) \
             + np.roll(spin, 1, axis=1) + np.roll(spin, -1, axis=1)
         Hamiltonian = np.sum(-R * spin) / (2 * self.area) - self.h * np.sum(spin) / self.area
         return Hamiltonian
     
     def _calc_magnetization(self, spin):
+        """Calculate the magnetization of the system.
+
+        Args:
+            spin (numpy.ndarray): 2D array of shape [L, L] with values -1 or +1.
+
+        Returns:
+            float: magnetization
+        """
         return np.sum(spin) / self.area
 
     def _compute_domain_wall_density_2d(self, spin):
@@ -84,6 +120,18 @@ class Glauber2DIsing:
 
     
     def simulate(self, beta, h=0):
+        """Run the Glauber dynamics simulation.
+
+        Args:
+            beta (float): Inverse temperature (1/k_B T).
+            h (int, optional): External magnetic field strength.
+
+        Returns:
+            float: Energy, magnetization, specific heat, and susceptibility.
+            list: Magnetization time series
+            np.ndarray: Configuration time series
+        """
+
         self.h = h
         E1, M1, E2, M2 = 0, 0, 0, 0
         M1_list = []
@@ -91,14 +139,14 @@ class Glauber2DIsing:
         spin = self._init_spin()
 
         for _ in range(self.eqstep):
-            _glauber(spin, self.L, beta, h=self.h)
+            _glauber_discrete(spin, self.L, beta, h=self.h)
             M = self._calc_magnetization(spin)
             M1_list.append(M)
             config_list.append(spin.copy())
             
         # Monte Carlo steps
         for _ in range(self.mcstep):
-            _glauber(spin, self.L, beta, h=self.h)
+            _glauber_discrete(spin, self.L, beta, h=self.h)
             E = self._calc_energy(spin)
             M = self._calc_magnetization(spin)
             M1_list.append(M)

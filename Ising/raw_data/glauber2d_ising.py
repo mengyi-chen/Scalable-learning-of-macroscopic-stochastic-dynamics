@@ -5,7 +5,7 @@ from numba import prange
 import time, os 
 
 @numba.jit(nopython=True)
-def _glauber(spin, L, beta, h=0):
+def _glauber_continuous(spin, L, beta, h=0):
     """Perform one sweep of Continuous-time Glauber dynamics for the Ising model.
 
     Args:
@@ -179,7 +179,7 @@ class Glauber2DIsing:
             M1_list.append(M)
             config_list.append(spin.copy())
 
-            _, delta_t = _glauber(spin, self.L, beta, h=self.h)
+            _, delta_t = _glauber_continuous(spin, self.L, beta, h=self.h)
             kmc_time.append(kmc_time[-1] + delta_t)
             
         # Monte Carlo steps
@@ -196,7 +196,7 @@ class Glauber2DIsing:
             E2 += E ** 2 / self.mcstep
             M2 += M ** 2 / self.mcstep
             
-            _, delta_t = _glauber(spin, self.L, beta, h=self.h)
+            _, delta_t = _glauber_continuous(spin, self.L, beta, h=self.h)
             kmc_time.append(kmc_time[-1] + delta_t)
 
         config_list = np.array(config_list)

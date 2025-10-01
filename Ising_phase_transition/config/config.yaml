@@ -1,0 +1,9 @@
+L: 64
+T: 2.27
+h: 0.0
+steps: 32000
+save_interval: 10
+seed: 0
+num_run: 50
+n_proc: 50
+data_mode: train

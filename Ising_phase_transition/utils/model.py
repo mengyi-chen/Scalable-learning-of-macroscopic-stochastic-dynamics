@@ -21,26 +21,26 @@ def weights_init(m):
 
 
 class Encoder(nn.Module):
-    def __init__(self, hidden_dim=2, macro_dim=6, L=32, box_L=16, h=0.0):
+    def __init__(self, closure_dim=2, macro_dim=6, L=32, patch_L=16, h=0.0):
         super().__init__()
-        assert L % box_L == 0, "L must be divisible by box_L"
+        assert L % patch_L == 0, "L must be divisible by patch_L"
 
-        self.hidden_dim = hidden_dim
+        self.closure_dim = closure_dim
         self.macro_dim = macro_dim
         self.L = L
-        self.box_L = box_L
-        self.d = int(L / box_L)
+        self.patch_L = patch_L
+        self.d = int(L / patch_L)
         self.h = h
         
-        if box_L == 32:
+        if patch_L == 32:
             num_downsamples = 3
         else:
-            num_downsamples = int(np.log2(box_L // 2))
+            num_downsamples = int(np.log2(patch_L // 2))
         self.num_downsamples = num_downsamples
         layers = []
         in_channels = 1
         out_channels = 32 
-        output_size = box_L 
+        output_size = patch_L 
         
         for _ in range(num_downsamples):
             layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1))
@@ -53,11 +53,11 @@ class Encoder(nn.Module):
             output_size //= 2
 
         layers.append(nn.Flatten())
-        layers.append(nn.Linear(in_channels * output_size ** 2, hidden_dim))
+        layers.append(nn.Linear(in_channels * output_size ** 2, closure_dim))
         self.model = nn.Sequential(*layers)
 
-        self.register_buffer('min_val', torch.zeros(macro_dim + hidden_dim), persistent=False)
-        self.register_buffer('max_val', torch.ones(macro_dim + hidden_dim), persistent=False)
+        self.register_buffer('min_val', torch.zeros(macro_dim + closure_dim), persistent=False)
+        self.register_buffer('max_val', torch.ones(macro_dim + closure_dim), persistent=False)
         
         self.apply(weights_init)
     
@@ -69,12 +69,12 @@ class Encoder(nn.Module):
         # x: [B, 1, 16, 16]
         z_macro = self.cal_macro(x) # [B, 1, 16, 16] -> [B, macro_dim]
 
-        x = x.reshape(-1, self.d, self.box_L, self.d, self.box_L)
+        x = x.reshape(-1, self.d, self.patch_L, self.d, self.patch_L)
         x = x.permute(0, 1, 3, 2, 4) # [B, 2, 2, 8, 8]
         x = x.flatten(0, 2).unsqueeze(1) # [B * 4, 1, 8, 8]
-        z_hat = self.model(x).reshape(-1, self.d ** 2, self.hidden_dim) # [B, 4, hidden_dim]
-        z_hat = torch.mean(z_hat, dim=1) # [B, hidden_dim]
-        z = torch.cat([z_macro, z_hat], -1) # [B, macro_dim + hidden_dim]
+        z_hat = self.model(x).reshape(-1, self.d ** 2, self.closure_dim) # [B, 4, closure_dim]
+        z_hat = torch.mean(z_hat, dim=1) # [B, closure_dim]
+        z = torch.cat([z_macro, z_hat], -1) # [B, macro_dim + closure_dim]
         return z
     
     def encode(self, x0, x1, partial=False, index=None):
@@ -82,11 +82,11 @@ class Encoder(nn.Module):
         # x: [B, 1, 32, 32, 32]
 
         if partial == False: 
-            z0 = self.forward(x0) # [B, macro_dim + hidden_dim]
-            z1 = self.forward(x1) # [B, macro_dim + hidden_dim]
+            z0 = self.forward(x0) # [B, macro_dim + closure_dim]
+            z1 = self.forward(x1) # [B, macro_dim + closure_dim]
 
-            z0 = (z0 - self.min_val) / (self.max_val - self.min_val) # [B, macro_dim + hidden_dim]
-            z1 = (z1 - self.min_val) / (self.max_val - self.min_val) # [B, macro_dim + hidden_dim]
+            z0 = (z0 - self.min_val) / (self.max_val - self.min_val) # [B, macro_dim + closure_dim]
+            z1 = (z1 - self.min_val) / (self.max_val - self.min_val) # [B, macro_dim + closure_dim]
             return z0, z1
 
         if partial == True:
@@ -95,7 +95,7 @@ class Encoder(nn.Module):
 
             z0 = self.forward(x0)
 
-            x0 = x0.reshape(-1, self.d, self.box_L, self.d, self.box_L)
+            x0 = x0.reshape(-1, self.d, self.patch_L, self.d, self.patch_L)
             x0 = x0.permute(0, 1, 3, 2, 4) # [B, 2, 2, 32, 32]
             x0 = x0.flatten(1, 2) # [B, 4, 32, 32]
             batch_indices = torch.arange(x0.shape[0], device=x0.device)
@@ -104,22 +104,22 @@ class Encoder(nn.Module):
 
             z0_macro = self.cal_macro(x0) # [B-1, 1, 16, 16, 16] -> [B-1, macro_dim]
             z1_macro = self.cal_macro(x1) # [B-1, 1, 16, 16, 16] -> [B-1, macro_dim]
-            z0_hat = self.model(x0) # [B-1, 1, 16, 16, 16] -> [B-1, hidden_dim]
+            z0_hat = self.model(x0) # [B-1, 1, 16, 16, 16] -> [B-1, closure_dim]
 
-            z1_hat = self.model(x1) # [B-1, 1, 16, 16, 16] -> [B-1, hidden_dim]
-            z0_partial = torch.cat([z0_macro, z0_hat], -1) # [B-1, macro_dim + hidden_dim]
-            z1_partial = torch.cat([z1_macro, z1_hat], -1) # [B-1, macro_dim + hidden_dim]
+            z1_hat = self.model(x1) # [B-1, 1, 16, 16, 16] -> [B-1, closure_dim]
+            z0_partial = torch.cat([z0_macro, z0_hat], -1) # [B-1, macro_dim + closure_dim]
+            z1_partial = torch.cat([z1_macro, z1_hat], -1) # [B-1, macro_dim + closure_dim]
 
-            z1_hat = z0 + (z1_partial - z0_partial) # [B-1, macro_dim + hidden_dim]
+            z1_hat = z0 + (z1_partial - z0_partial) # [B-1, macro_dim + closure_dim]
 
             z0 = (z0 - self.min_val) / (self.max_val - self.min_val)
-            z1_hat = (z1_hat - self.min_val) / (self.max_val - self.min_val) # [B-1, macro_dim + hidden_dim]
+            z1_hat = (z1_hat - self.min_val) / (self.max_val - self.min_val) # [B-1, macro_dim + closure_dim]
 
             return z0, z1_hat
 
 class EncoderIsing(Encoder):
-    def __init__(self, hidden_dim=2, macro_dim=6, L=16, box_L=8, h=0.0):
-        super().__init__(hidden_dim, macro_dim, L, box_L, h)
+    def __init__(self, closure_dim=2, macro_dim=6, L=16, patch_L=8, h=0.0):
+        super().__init__(closure_dim, macro_dim, L, patch_L, h)
 
     def cal_macro(self, x):
         # magnetization 
@@ -140,17 +140,17 @@ class EncoderIsing(Encoder):
     
 
 class Decoder(nn.Module):
-    def __init__(self, hidden_dim=2, macro_dim=6, L=32, box_L=16): # Added L
+    def __init__(self, closure_dim=2, macro_dim=6, L=32, patch_L=16): # Added L
         super().__init__()
-        assert L % box_L == 0, "L must be divisible by box_L"
+        assert L % patch_L == 0, "L must be divisible by patch_L"
         assert L >= 4, "L must be at least 4"
-        assert box_L >= 4, "box_L must be at least 4"
+        assert patch_L >= 4, "patch_L must be at least 4"
         
         self.macro_dim = macro_dim
-        self.hidden_dim = hidden_dim
+        self.closure_dim = closure_dim
         self.L = L
-        self.box_L = box_L
-        self.d = int(L / box_L)
+        self.patch_L = patch_L
+        self.d = int(L / patch_L)
 
         # Calculate number of upsampling layers needed to reach L from initial 4x4
         if L == 48:
@@ -163,7 +163,7 @@ class Decoder(nn.Module):
         layers = []
         
         # Initial linear layer and unflatten
-        layers.append(nn.Linear(self.hidden_dim + self.macro_dim, np.prod(initial_size)))
+        layers.append(nn.Linear(self.closure_dim + self.macro_dim, np.prod(initial_size)))
         layers.append(nn.LeakyReLU(0.2))
         layers.append(nn.Unflatten(1, initial_size))  # [B, 128, 4, 4]
         
@@ -193,7 +193,7 @@ class Decoder(nn.Module):
         self.apply(weights_init)
 
     def forward(self, z):
-        # z: [B, macro_dim + hidden_dim]
+        # z: [B, macro_dim + closure_dim]
         # return shape: [B, 1, L, L]
 
         x = self.model(z) 
@@ -202,13 +202,13 @@ class Decoder(nn.Module):
 
     
 class Conv2DAutoencoder(nn.Module):
-    def __init__(self, hidden_dim=2, macro_dim=6, L=16, box_L=8, h=0.0):
+    def __init__(self, closure_dim=2, macro_dim=6, L=16, patch_L=8, h=0.0):
         super().__init__()
-        self.hidden_dim = hidden_dim
+        self.closure_dim = closure_dim
         self.macro_dim = macro_dim
         
-        self.encoder = EncoderIsing(hidden_dim, macro_dim, L, box_L, h)
-        self.decoder = Decoder(hidden_dim, macro_dim, L, box_L)
+        self.encoder = EncoderIsing(closure_dim, macro_dim, L, patch_L, h)
+        self.decoder = Decoder(closure_dim, macro_dim, L, patch_L)
     
     def forward(self, x):
         # x: [B, 1, 16, 16]

@@ -1,16 +1,14 @@
 import torch 
-import torch.nn
 import numpy as np
 import sys,os
 import matplotlib.pyplot as plt 
 import argparse
 from datetime import datetime
 import logging
-import sys
+import yaml
 import torch.nn as nn
 sys.path.append('..')
-from utils.onsagernet_pytorch import S_OnsagerNet, SDE_Net
-import pickle
+from utils.models import SDE_Net
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
@@ -21,14 +19,18 @@ import warnings
 warnings.filterwarnings("ignore")
 torch.set_default_dtype(torch.float32)
 
+# Load parameters from YAML configuration file
+with open('../config/config.yaml', 'r') as file:
+    params = yaml.safe_load(file)
+
 # General arguments
-parser = argparse.ArgumentParser(description='Stochastic OnsagerNet')
+parser = argparse.ArgumentParser(description='Identify macroscopic dynamics')
 parser.add_argument('--gpu_idx', default=7, type=int)
 parser.add_argument('--seed', default=42, type=int)
 parser.add_argument('--Task_NAME', default='ising', type=str)
-parser.add_argument('--hidden_dim', default=4, type=int)
+parser.add_argument('--n_dim', default=4, type=int)
 parser.add_argument('--L', default=128, type=int)
-parser.add_argument('--box_L', default=16, type=int)
+parser.add_argument('--patch_L', default=16, type=int)
 parser.add_argument('--h', default=0.0, type=float)
 parser.add_argument('--T', default=2.27, type=float)
 parser.add_argument('--save_interval', type=int, default=10, help="Interval of saving the microscopic configuration")
@@ -41,7 +43,6 @@ parser.add_argument('--lr', default=0.0002, type=float)
 parser.add_argument('--mode', default='arbitrary', type=str)
 parser.add_argument('--epsilon', default=1e-4, type=float)
 parser.add_argument('--coeff', default=32, type=float)
-parser.add_argument('--model_name', default='SDE_Net', type=str)
 args = parser.parse_args()
     
 class Trainer():
@@ -51,12 +52,12 @@ class Trainer():
         start_message = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Initializing."
         print(start_message)
         date = datetime.now().strftime('%Y_%m_%d_%H:%M:%S')
-        # self.folder = os.path.join('../checkpoints',f'SDE_partial_box_L_{args.box_L}_L_{args.L}_seed_{args.seed}')
+        # self.folder = os.path.join('../checkpoints',f'SDE_partial_patch_L_{args.patch_L}_L_{args.L}_seed_{args.seed}')
         root_folder = '../checkpoints_T_{:.2f}'.format(args.T)
         if not os.path.exists(root_folder):
             os.mkdir(root_folder)
             
-        # self.folder = os.path.join(root_folder,f'SDE_partial_box_L_{args.box_L}_L_{args.L}_seed_{args.seed}_coeff_{args.coeff:.0f}_epsilon_{args.epsilon}_{date}')
+        # self.folder = os.path.join(root_folder,f'SDE_partial_patch_L_{args.patch_L}_L_{args.L}_seed_{args.seed}_coeff_{args.coeff:.0f}_epsilon_{args.epsilon}_{date}')
         self.folder = os.path.join(root_folder,f'SDE_L_{args.L}_seed_{args.seed}_coeff_{args.coeff}_epsilon_{args.epsilon}_{date}')
         if not os.path.exists(self.folder):
             os.mkdir(self.folder) 
@@ -76,17 +77,13 @@ class Trainer():
             
         self.args = args
         self.device = torch.device(f"cuda:{args.gpu_idx}") if torch.cuda.is_available() else torch.device('cpu')
-        self.d = int(args.L / args.box_L)
+        self.d = int(args.L / args.patch_L)
         
         self.load_data()
         self.dt = torch.tensor(1 / args.save_interval, device=self.device)
         
-        if args.model_name == 'S_OnsagerNet':
-            self.model = S_OnsagerNet(self.dt, mode=args.mode, n_dim=args.hidden_dim, epsilon=args.epsilon).to(self.device)
-        elif args.model_name == 'SDE_Net':
-            self.model = SDE_Net(self.dt, mode=args.mode, n_dim=args.hidden_dim, epsilon=args.epsilon).to(self.device)
-        else:
-            raise ValueError(f"Model {args.model_name} is not supported.")
+        self.model = SDE_Net(self.dt, mode=args.mode, n_dim=args.n_dim, epsilon=args.epsilon).to(self.device)
+
 
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=args.lr, amsgrad=True, weight_decay=0)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min',factor=0.5,threshold_mode='rel',patience=args.patience,cooldown=0,min_lr=5e-6)
@@ -99,16 +96,16 @@ class Trainer():
  
     def load_data(self):
         
-        data_path = f'../data/{args.Task_NAME}_box_L_{args.box_L}_L_{args.L}_T_{args.T:.2f}'
+        data_path = f'../data/{args.Task_NAME}_patch_L_{args.patch_L}_L_{args.L}_T_{args.T:.2f}'
 
         # ========= load train data =========
-        self.z0_train = torch.load(f'{data_path}/z0_train.pt', map_location=self.device) # [n_tra, length_per_tra, hidden_dim]
-        self.z1_train = torch.load(f'{data_path}/z1_train_partial.pt', map_location=self.device) # [n_tra, length_per_tra, hidden_dim]
+        self.z0_train = torch.load(f'{data_path}/z0_train.pt', map_location=self.device) # [n_tra, length_per_tra, n_dim]
+        self.z1_train = torch.load(f'{data_path}/z1_train_partial.pt', map_location=self.device) # [n_tra, length_per_tra, n_dim]
 
         if args.L == 16:
             self.train_dt = torch.load(f'../raw_data/L{args.L}_MC32000_h{args.h}_T{args.T:.2f}/time_step_train_partial.pt', map_location=self.device) # [n_tra, length_per_tra]
         else:
-            self.train_dt = torch.load(f'../raw_data_upscale/scaleup_L{args.L}_h{args.h}_T{args.T:.2f}/time_step_train_partial.pt', map_location=self.device) # [n_tra, length_per_tra]
+            self.train_dt = torch.load(f'../raw_data_upsample/scaleup_L{args.L}_h{args.h}_T{args.T:.2f}/time_step_train_partial.pt', map_location=self.device) # [n_tra, length_per_tra]
 
         z0_train = self.z0_train.flatten(0, 1)
         z1_train = self.z1_train.flatten(0, 1)
@@ -118,8 +115,8 @@ class Trainer():
         print('z1_train shape:', z1_train.shape)
         print('train_dt shape:', train_dt.shape)
 
-        self.z0_val = torch.load(f'{data_path}/z0_val.pt', map_location=self.device) # [n_tra, length_per_tra, hidden_dim]
-        self.z1_val = torch.load(f'{data_path}/z1_val.pt', map_location=self.device) # [n_tra, length_per_tra, hidden_dim]  
+        self.z0_val = torch.load(f'{data_path}/z0_val.pt', map_location=self.device) # [n_tra, length_per_tra, n_dim]
+        self.z1_val = torch.load(f'{data_path}/z1_val.pt', map_location=self.device) # [n_tra, length_per_tra, n_dim]  
         self.val_dt = torch.load(f'../raw_data/L{args.L}_MC32000_h{args.h}_T{args.T:.2f}/time_step_val.pt', map_location=self.device)
 
         z0_val = self.z0_val.flatten(0, 1)
@@ -153,7 +150,7 @@ class Trainer():
 
         # Plot the true trajectories
         fig = plt.figure(figsize=(48, 6))
-        plot = self.z0_val.detach().cpu().numpy() # [n_tra, length_per_tra, hidden_dim]
+        plot = self.z0_val.detach().cpu().numpy() # [n_tra, length_per_tra, n_dim]
         # t = np.arange(plot.shape[1]) 
         t = list(np.arange(1000) * 0.1) + list(range(100, 3200))
         print('len(t):', len(t))

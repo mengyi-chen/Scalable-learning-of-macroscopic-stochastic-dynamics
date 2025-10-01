@@ -14,7 +14,7 @@ import torch.nn.functional as F
 def args_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--L', type=int, default=128, help="Length of the lattice: L")
-    parser.add_argument('--box_L', type=int, default=16, help="Length of the box: box_L")
+    parser.add_argument('--patch_L', type=int, default=16, help="Length of the box: patch_L")
     parser.add_argument('--T', type=float, default=2.27, help="Temperature")
     parser.add_argument('--h', type=float, default=0.0, help="externel field strength")
     parser.add_argument('--seed', type=int, default=0, help='Random seed (default: 0)')
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     device = torch.device(f'cuda:{args.gpu_idx}' if torch.cuda.is_available() else 'cpu')
     X0_val = torch.load(os.path.join(rootpath, 'X0_val.pt'), weights_only=True, map_location=device)
 
-    d = int(args.L // args.box_L)  
+    d = int(args.L // args.patch_L)  
 
     if args.L == 16:
         X0_train = torch.load(os.path.join(rootpath, 'X0_train.pt'), weights_only=True, map_location=device) 
@@ -44,7 +44,7 @@ if __name__ == "__main__":
         time_step_train = []
         for i in tqdm(range(X0_train.shape[0])):
             tra = X0_train[i] # [3200, 16, 16]
-            tra_dt, glauber_time = glauber_continuous(tra, args.box_L, 1.0 / args.T, args.h)
+            tra_dt, glauber_time = glauber_continuous(tra, args.patch_L, 1.0 / args.T, args.h)
 
             X1_train.append(tra_dt)
             time_step_train.append(glauber_time)
