@@ -17,12 +17,12 @@ from utils.kmc_cpu import KMC_CPU
 
 # Choose your backend here:
 parser = argparse.ArgumentParser(description='CPU-based KMC Simulation')
-parser.add_argument('--box_L', default=32, type=int)
+parser.add_argument('--L', default=32, type=int)
 parser.add_argument('--max_steps', default=125, type=int)
 parser.add_argument('--min_steps', default=5, type=int)
 parser.add_argument('--model_weights', default='../utils/weights.npy', type=str)
 parser.add_argument('--unit', default='s', type=str)
-parser.add_argument('--small_box_L', default=8, type=int)
+parser.add_argument('--patch_L', default=8, type=int)
 parser.add_argument('--equilibration_steps', default=1000, type=int)
 parser.add_argument('--seed', default=0, type=int)
 parser.add_argument('--N_samples', default=2000, type=int)
@@ -71,7 +71,7 @@ def redistribution_vacancies(config_grid):
     # target_places = [(8, 8, 8), (8, 8, 24), (8, 24, 8), (8, 24, 24),
     #                  (24, 8, 8), (24, 8, 24), (24, 24, 8), (24, 24, 24)]
 
-    starts = range(args.small_box_L, config_grid.shape[0], args.small_box_L*2)
+    starts = range(args.patch_L, config_grid.shape[0], args.patch_L*2)
     target_places = [(i, j, k) for i in starts for j in starts for k in starts]
 
     for i in range(len(target_places)):
@@ -88,7 +88,7 @@ def generate_pool(T):
         folder = '../data/output_atoms_1024_steps_2000000'
     else:
         raise ValueError("Temperature out of range. Please choose a temperature between 300 and 3000 K.")
-    for seed in range(10, 20):
+    for seed in range(10):
         micro_val_path = os.path.join(folder, f'T_{T}_seed_{seed}', 'micro_val.npy')
         micro_val = np.load(micro_val_path, allow_pickle=True)
         pool.append(micro_val)
@@ -98,8 +98,8 @@ def generate_pool(T):
     return pool
 
 
-def patchwise_relax_batched(spins, T, patch_size, stride, n_events=10):
-    # spins shape: [box_L * 2, box_L * 2, box_L * 2]
+def LocalRelax(spins, T, patch_size, stride, n_events=10):
+    # spins shape: [L * 2, L * 2, L * 2]
     L = spins.shape[0]
     starts = range(stride, L, patch_size)
   
@@ -123,51 +123,41 @@ def patchwise_relax_batched(spins, T, patch_size, stride, n_events=10):
     return spins
 
 
-def generate_config(box_L, pool):
+def UpSample(L, pool):
 
-    small_box_L = pool.shape[-1] // 2
-    assert box_L % small_box_L == 0, "box_L must be a multiple of small_box_L"
-    tile_times = box_L // small_box_L
+    patch_L = pool.shape[-1] // 2
+    assert L % patch_L == 0, "L must be a multiple of patch_L"
+    tile_times = L // patch_L
         
     length = pool.shape[1]
     idx = np.random.randint(length)
 
-    # FIXME:
-    # idx_min = np.max([0, idx - 2])
-    # idx_max = np.min([length, idx + 2])
-
     idx_min = np.max([0, idx - 10])
     idx_max = np.min([length, idx + 10])
-    choices = pool[:, idx_min:idx_max].reshape(-1, 2*small_box_L, 2*small_box_L, 2*small_box_L)  # [N, 16, 16, 16]
+    choices = pool[:, idx_min:idx_max].reshape(-1, 2*patch_L, 2*patch_L, 2*patch_L)  # [N, 16, 16, 16]
 
-    config_grid_large = np.empty((box_L*2,box_L*2,box_L*2), dtype=np.int32)
-
-    small_chemical_order = []  
+    config_grid_large = np.empty((L*2,L*2,L*2), dtype=np.int32)
     
     for _, (i,j,k) in enumerate(product(range(tile_times), repeat=3)):
         # Randomly choose one from the closest configurations
         indice = np.random.choice(choices.shape[0], size=1, replace=True)[0] 
         s = choices[indice]
-        
-        chemical_order = cal_local_chemical_order(s)
-        small_chemical_order.append(chemical_order)
-        
+                
         # random cyclic shift
-        dx, dy, dz = np.random.randint(0, small_box_L, size=3) * 2
+        dx, dy, dz = np.random.randint(0, patch_L, size=3) * 2
         s = np.roll(np.roll(np.roll(s, dx, 0), dy, 1), dz, 2)
 
-        index_x = np.arange(i*small_box_L*2,(i+1)*small_box_L*2)
-        index_y = np.arange(j*small_box_L*2,(j+1)*small_box_L*2)
-        index_z = np.arange(k*small_box_L*2,(k+1)*small_box_L*2)
+        index_x = np.arange(i*patch_L*2,(i+1)*patch_L*2)
+        index_y = np.arange(j*patch_L*2,(j+1)*patch_L*2)
+        index_z = np.arange(k*patch_L*2,(k+1)*patch_L*2)
 
         # Use np.ix_ to create proper 3D indexing for block assignment
         config_grid_large[np.ix_(index_x, index_y, index_z)] = s
 
     config_grid_large = redistribute_atoms(config_grid_large)
-    small_chemical_order = np.mean(np.array(small_chemical_order), axis=0)
  
     if args.n_events > 0:
-        config_grid_large = patchwise_relax_batched(config_grid_large, args.temperature, patch_size=args.small_box_L*2, stride=args.small_box_L, n_events=args.n_events)
+        config_grid_large = LocalRelax(config_grid_large, args.temperature, patch_size=args.patch_L*2, stride=args.patch_L, n_events=args.n_events)
     config_grid_large = redistribution_vacancies(config_grid_large)
 
     return config_grid_large
@@ -245,18 +235,18 @@ def partial_kmc_simulation(initial_config_grid, temperature, num_voxels=4):
     # generate partial config grid
     ncell = initial_config_grid.shape[0]
 
-    idx_range = (np.arange(center[0] - args.small_box_L, center[0] + args.small_box_L) % ncell)
-    idy_range = (np.arange(center[1] - args.small_box_L, center[1] + args.small_box_L) % ncell)
-    idz_range = (np.arange(center[2] - args.small_box_L, center[2] + args.small_box_L) % ncell)
+    idx_range = (np.arange(center[0] - args.patch_L, center[0] + args.patch_L) % ncell)
+    idy_range = (np.arange(center[1] - args.patch_L, center[1] + args.patch_L) % ncell)
+    idz_range = (np.arange(center[2] - args.patch_L, center[2] + args.patch_L) % ncell)
     config_grid = initial_config_grid[np.ix_(idx_range, idy_range, idz_range)]
 
     # NOTE: use the mean 
     # z0 = np.array(cal_local_chemical_order(initial_config_grid))
     z0 = []
-    for i, j, l in product(range(args.box_L // args.small_box_L), repeat=3):
-        sub_idx = (np.arange(i*args.small_box_L*2, (i+1)*args.small_box_L*2))
-        sub_idy = (np.arange(j*args.small_box_L*2, (j+1)*args.small_box_L*2))
-        sub_idz = (np.arange(l*args.small_box_L*2, (l+1)*args.small_box_L*2))
+    for i, j, l in product(range(args.L // args.patch_L), repeat=3):
+        sub_idx = (np.arange(i*args.patch_L*2, (i+1)*args.patch_L*2))
+        sub_idy = (np.arange(j*args.patch_L*2, (j+1)*args.patch_L*2))
+        sub_idz = (np.arange(l*args.patch_L*2, (l+1)*args.patch_L*2))
         sub_grid = initial_config_grid[np.ix_(sub_idx, sub_idy, sub_idz)]
         z0.append(cal_local_chemical_order(sub_grid))
     z0 = np.mean(z0, axis=0)  # Calculate the mean z
@@ -324,14 +314,12 @@ def main():
     macro_vals_partial = []
     macro_vals = []
     
-    # Initialize progress bar
+   
     pbar = tqdm(total=args.N_samples, desc="Processing configurations")
-
     while len(macro_vals) < args.N_samples:
 
-        x0 = generate_config(args.box_L, pool)
+        x0 = UpSample(args.L, pool)
         step, kmc_time, z0, z1_partial = partial_kmc_simulation(x0, args.temperature)
-
 
         if step < args.min_steps:
             continue
@@ -348,7 +336,7 @@ def main():
     macro_vals_partial = np.array(macro_vals_partial)
     macro_vals = np.array(macro_vals)
 
-    folder = f'../data/partial_sampling_atoms_{2*args.box_L**3}'
+    folder = f'../data/partial_sampling_atoms_{2*args.L**3}'
     if not os.path.exists(folder):
         os.makedirs(folder)
     np.save(os.path.join(folder, f'step_T_{args.temperature}_seed_{args.seed}.npy'), steps)
