@@ -30,10 +30,7 @@ class Encoder(nn.Module):
         self.patch_L = patch_L
         self.d = int(L / patch_L)
         
-        if patch_L == 32:
-            num_downsamples = 3
-        else:
-            num_downsamples = int(np.log2(patch_L // 2))
+        num_downsamples = int(np.log2(patch_L // 2))
         self.num_downsamples = num_downsamples
         layers = []
         in_channels = 1
@@ -115,7 +112,7 @@ class Encoder(nn.Module):
 
         Args:
             x0 (Tensor): Input tensor of shape [B, 2, grid_size]
-            x1 (Tensor): Input tensor of shape [B, 2, grid_size] if partial is False, else [B, 2, patch_size]
+            x1 (Tensor): Input tensor of shape [B, 2, grid_size] if partial is False, else [B, 2, patch_L]
             partial (bool, optional): Whether to use partial encoding. Defaults to False.
             index (Tensor, optional): Indices of the patches to use for partial encoding. Defaults to None.
 
@@ -146,17 +143,22 @@ class Encoder(nn.Module):
             x0 = x0.permute(0, 1, 3, 2, 4) # [B, 2, 2, 32, 32]
             x0 = x0.flatten(1, 2) # [B, 4, 32, 32]
             batch_indices = torch.arange(x0.shape[0], device=x0.device)
+            x0_partial = x0[batch_indices, index].unsqueeze(1) # [B, 1, 32, 32] 
+            
+            # $x_{1, I}$
+            x1_partial = x1 
 
-            x0 = x0[batch_indices, index].unsqueeze(1) # [B, 1, 32, 32] 
+            z0_macro_partial = self.cal_macro(x0_partial) # [B-1, 1, 16, 16, 16] -> [B-1, macro_dim]
+            z1_macro_partial = self.cal_macro(x1_partial) # [B-1, 1, 16, 16, 16] -> [B-1, macro_dim]
+            z0_hat_partial = self.model(x0_partial) # [B-1, 1, 16, 16, 16] -> [B-1, closure_dim]
+            z1_hat_partial = self.model(x1_partial) # [B-1, 1, 16, 16, 16] -> [B-1, closure_dim]
 
-            z0_macro = self.cal_macro(x0) # [B-1, 1, 16, 16, 16] -> [B-1, macro_dim]
-            z1_macro = self.cal_macro(x1) # [B-1, 1, 16, 16, 16] -> [B-1, macro_dim]
-            z0_hat = self.model(x0) # [B-1, 1, 16, 16, 16] -> [B-1, closure_dim]
-
-            z1_hat = self.model(x1) # [B-1, 1, 16, 16, 16] -> [B-1, closure_dim]
-            z0_partial = torch.cat([z0_macro, z0_hat], -1) # [B-1, macro_dim + closure_dim]
-            z1_partial = torch.cat([z1_macro, z1_hat], -1) # [B-1, macro_dim + closure_dim]
-
+            # $\varphi(x_{0, I})$
+            z0_partial = torch.cat([z0_macro_partial, z0_hat_partial], -1) # [B-1, macro_dim + closure_dim]
+            # $\varphi(x_{1, I})$
+            z1_partial = torch.cat([z1_macro_partial, z1_hat_partial], -1) # [B-1, macro_dim + closure_dim]
+            
+            # z1 = \varphi(x_0) + (\varphi(x_{1, I}) - \varphi(x_{0, I}))
             z1_hat = z0 + (z1_partial - z0_partial) # [B-1, macro_dim + closure_dim]
 
             z0 = (z0 - self.min_val) / (self.max_val - self.min_val)
@@ -166,11 +168,9 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, closure_dim=2, macro_dim=6, L=32, patch_L=16): # Added L
+    def __init__(self, closure_dim=2, macro_dim=2, L=64, patch_L=16): # Added L
         super().__init__()
         assert L % patch_L == 0, "L must be divisible by patch_L"
-        assert L >= 4, "L must be at least 4"
-        assert patch_L >= 4, "patch_L must be at least 4"
         
         self.macro_dim = macro_dim
         self.closure_dim = closure_dim
@@ -219,40 +219,52 @@ class Decoder(nn.Module):
         self.apply(weights_init)
 
     def forward(self, z):
-        # z: [B, macro_dim + closure_dim]
-        # return shape: [B, 1, L, L]
+        """Decode the latent representation back to the original state space
+
+        Args:
+            z (Tensor): Input tensor of shape [B, macro_dim + closure_dim]
+
+        Returns:
+            Tensor: Output tensor of shape [B, 1, L, L]
+        """
 
         x = self.model(z) 
+
+        # map the output from [0, 1] to [-1, 1] since the Ising state is represented by -1 and 1
         x = x * 2 - 1
         return x
 
     
 class Conv2DAutoencoder(nn.Module):
-    def __init__(self, closure_dim=2, macro_dim=6, L=16, patch_L=8, h=0.0):
+    def __init__(self, closure_dim=2, macro_dim=2, L=16, patch_L=8):
         super().__init__()
         self.closure_dim = closure_dim
         self.macro_dim = macro_dim
         
-        self.encoder = EncoderIsing(closure_dim, macro_dim, L, patch_L, h)
+        self.encoder = Encoder(closure_dim, macro_dim, L, patch_L)
         self.decoder = Decoder(closure_dim, macro_dim, L, patch_L)
     
     def forward(self, x):
-        # x: [B, 1, 16, 16]
+        """Autoencoder for identifying closure variables
+        
+        Args:
+            x (Tensor): Input tensor of shape [B, 1, L, L]
+
+        Returns:
+            Tensor: Reconstructed tensor of shape [B, 1, L, L]
+        """
+        # x: [B, 1, L, L]
         z = self.encoder(x)
         x = self.decoder(z) 
         return x
     
-    def encode(self, x0, x1, partial=False, index=None):
-        z = self.encoder.encode(x0, x1, partial=partial, index=index)
+    def encode_pairs(self, x0, x1, partial=False, index=None):
+        z = self.encoder.encode_pairs(x0, x1, partial=partial, index=index)
         return z
         
     def cal_macro(self, x):
         z_macro = self.encoder.cal_macro(x)
         return z_macro
-
-
-
-
 
 
 

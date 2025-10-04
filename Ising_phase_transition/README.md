@@ -1,6 +1,6 @@
-# Ising Model
+# Critical Behavior of the 2D Ising Model
 
-This is an implementation of our method on the Ising model.
+This is the official implementation of our method on the Ising model to identify the critical behavior near the phase transition.
 
 ## Directory Structure
 
@@ -23,8 +23,8 @@ This is an implementation of our method on the Ising model.
 
 - **test/**
   - Contains test scripts and visualizations for validating the model.
-  - `test.ipynb`: Jupyter notebook for testing the results
-  - `plot.py`: visualization of the results
+  - `test_ising_model.py`: Test the performance of the SDE model
+  - `plot.ipynb`: visualization of the results
 
 
 ## Getting Started

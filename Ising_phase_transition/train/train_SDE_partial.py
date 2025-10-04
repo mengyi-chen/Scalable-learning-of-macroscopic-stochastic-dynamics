@@ -8,6 +8,7 @@ import logging
 import yaml
 import torch.nn as nn
 sys.path.append('..')
+from hyperparams import get_hyperparameters
 from utils.models import SDE_Net
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
@@ -25,26 +26,39 @@ with open('../config/config.yaml', 'r') as file:
 
 # General arguments
 parser = argparse.ArgumentParser(description='Identify macroscopic dynamics')
-parser.add_argument('--gpu_idx', default=7, type=int)
-parser.add_argument('--seed', default=42, type=int)
-parser.add_argument('--Task_NAME', default='ising', type=str)
-parser.add_argument('--n_dim', default=4, type=int)
-parser.add_argument('--L', default=128, type=int)
-parser.add_argument('--patch_L', default=16, type=int)
-parser.add_argument('--h', default=0.0, type=float)
-parser.add_argument('--T', default=2.27, type=float)
-parser.add_argument('--save_interval', type=int, default=10, help="Interval of saving the microscopic configuration")
+parser.add_argument('--gpu_idx', default=params['gpu_idx'], type=int, help='GPU index')
+parser.add_argument('--seed', default=42, type=int, help='Random seed')
+parser.add_argument('--n_dim', default=params['n_dim'], type=int, help='latent dimension')
+parser.add_argument('--L', default=64, type=int, help='Lattice size')
+parser.add_argument('--patch_L', default=params['patch_L'], type=int, help='Patch size')
+parser.add_argument('--h', default=params['h'], type=float, help='Magnetic field strength')
+parser.add_argument('--T', default=params['T'], type=float, help='Temperature')
+parser.add_argument('--save_interval', type=int, default=params['save_interval'], help="Interval of saving the microscopic configuration")
 # training parameters
-parser.add_argument('--train_bs', default=1024, type=int)
-parser.add_argument('--val_bs', default=1024, type=int)
-parser.add_argument('--num_epoch', default=200, type=int)
-parser.add_argument('--patience', default=5, type=int)
-parser.add_argument('--lr', default=0.0002, type=float)
-parser.add_argument('--mode', default='arbitrary', type=str)
-parser.add_argument('--epsilon', default=1e-4, type=float)
-parser.add_argument('--coeff', default=32, type=float)
+parser.add_argument('--train_bs', default=1024, type=int, help='Training batch size')
+parser.add_argument('--val_bs', default=1024, type=int, help='Validation batch size')
+parser.add_argument('--patience', default=5, type=int, help='Patience for LR scheduler')
+parser.add_argument('--lr', default=0.0002, type=float, help='Learning rate')
+parser.add_argument('--mode', default='arbitrary', type=str, choices=['constant_diagonal', 'diagonal', 'constant', 'arbitrary'], help='Diffusion mode')
+parser.add_argument('--num_epoch', default=None, type=int, help='Number of training epochs')
+parser.add_argument('--epsilon', default=None, type=float, help='Small value for numerical stability')
+parser.add_argument('--coeff', default=None, type=float, help='Coefficient for the diffusion term')
+parser.add_argument('--default_hyperparams', action='store_true', help='Use default hyperparameters if specific ones are not found')
 args = parser.parse_args()
     
+if args.default_hyperparams:
+    try:
+        auto_params = get_hyperparameters(args.L, args.T)
+        args.epsilon = args.epsilon or auto_params['epsilon']
+        args.coeff = args.coeff or auto_params['coeff']
+        args.num_epoch = auto_params['epochs']
+        print(f"Loaded hyperparameters for L={args.L}, T={args.T}: epsilon={args.epsilon}, coeff={args.coeff}, epochs={args.num_epoch}")
+    except KeyError:
+        assert args.epsilon is not None 
+        assert args.coeff is not None
+        assert args.num_epoch is not None
+        print(f"No hyperparameters found for L={args.L}, T={args.T}. Using defaults: epsilon={args.epsilon}, coeff={args.coeff}, num_epoch={args.num_epoch}")
+
 class Trainer():
     def __init__(self, args):
         set_seed(args.seed)
@@ -52,13 +66,12 @@ class Trainer():
         start_message = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Initializing."
         print(start_message)
         date = datetime.now().strftime('%Y_%m_%d_%H:%M:%S')
-        # self.folder = os.path.join('../checkpoints',f'SDE_partial_patch_L_{args.patch_L}_L_{args.L}_seed_{args.seed}')
         root_folder = '../checkpoints_T_{:.2f}'.format(args.T)
         if not os.path.exists(root_folder):
             os.mkdir(root_folder)
             
-        # self.folder = os.path.join(root_folder,f'SDE_partial_patch_L_{args.patch_L}_L_{args.L}_seed_{args.seed}_coeff_{args.coeff:.0f}_epsilon_{args.epsilon}_{date}')
-        self.folder = os.path.join(root_folder,f'SDE_L_{args.L}_seed_{args.seed}_coeff_{args.coeff}_epsilon_{args.epsilon}_{date}')
+        # self.folder = os.path.join(root_folder,f'SDE_L_{args.L}_seed_{args.seed}_coeff_{args.coeff}_epsilon_{args.epsilon}_{date}')
+        self.folder = os.path.join(root_folder,f'SDE_L_{args.L}_seed_{args.seed}_coeff_{args.coeff}_epsilon_{args.epsilon}')
         if not os.path.exists(self.folder):
             os.mkdir(self.folder) 
                         
@@ -68,7 +81,7 @@ class Trainer():
                     format='%(levelname)s %(message)s',
                     datefmt='%H:%M:%S',
                     level=logging.INFO)
-        logging.info("Training log for DNA")
+        logging.info("Training log for Ising_phase_transition")
         self.logger = logging.getLogger('')
         self.logger.info(start_message)
         for arg in vars(args):
@@ -89,23 +102,21 @@ class Trainer():
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min',factor=0.5,threshold_mode='rel',patience=args.patience,cooldown=0,min_lr=5e-6)
         # self.coeff = self.d**2
 
-        # NOTE
-        self.coeff = args.coeff 
+        if args.coeff is not None:  
+            self.coeff = args.coeff 
+        else:
+            self.coeff = self.d**2
         print('coeff:', self.coeff)
 
  
     def load_data(self):
         
-        data_path = f'../data/{args.Task_NAME}_patch_L_{args.patch_L}_L_{args.L}_T_{args.T:.2f}'
+        data_path = f'../data/patch_L_{args.patch_L}_L_{args.L}_T_{args.T:.2f}'
 
         # ========= load train data =========
         self.z0_train = torch.load(f'{data_path}/z0_train.pt', map_location=self.device) # [n_tra, length_per_tra, n_dim]
         self.z1_train = torch.load(f'{data_path}/z1_train_partial.pt', map_location=self.device) # [n_tra, length_per_tra, n_dim]
-
-        if args.L == 16:
-            self.train_dt = torch.load(f'../raw_data/L{args.L}_MC32000_h{args.h}_T{args.T:.2f}/time_step_train_partial.pt', map_location=self.device) # [n_tra, length_per_tra]
-        else:
-            self.train_dt = torch.load(f'../raw_data_upsample/scaleup_L{args.L}_h{args.h}_T{args.T:.2f}/time_step_train_partial.pt', map_location=self.device) # [n_tra, length_per_tra]
+        self.train_dt = torch.load(f'../raw_data_upsample/scaleup_patch_L_{args.patch_L}_L{args.L}_h{args.h}_T{args.T:.2f}/time_step_train.pt', map_location=self.device) # [n_tra, length_per_tra]
 
         z0_train = self.z0_train.flatten(0, 1)
         z1_train = self.z1_train.flatten(0, 1)
@@ -273,9 +284,6 @@ class Trainer():
             M = np.abs(M)
 
             M = np.clip(M, 0, 1)
-
-            # mag_susceptibility = cal_mag_susceptibility(M, args.L)
-            # print(f'\n epoch {epoch}, predicted Magnetization susceptibility: {mag_susceptibility}')
             fig = plt.figure(figsize=(8, 6))
             axes = fig.add_subplot(1, 1, 1)
             sns.kdeplot(M, fill=False, bw_adjust=2.5, cut=0, color='blue', label='Predicted')

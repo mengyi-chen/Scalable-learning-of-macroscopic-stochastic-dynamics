@@ -77,13 +77,16 @@ class Trainer():
 
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=args.lr, amsgrad=True, weight_decay=0)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min',factor=0.5,threshold_mode='rel',patience=args.patience,cooldown=0,min_lr=5e-6)
-        if args.method == 'ours':
-            self.coeff = self.d**2
-        elif args.method == 'naive':
-            self.coeff = 1
+        if self.coeff is not None:
+            self.coeff = args.coeff
         else:
-            raise ValueError(f"Method {args.method} is not supported.")
-        
+            if args.method == 'ours':
+                self.coeff = self.d**2
+            elif args.method == 'naive':
+                self.coeff = 1
+            else:
+                raise ValueError(f"Method {args.method} is not supported.")
+            
         print('coeff:', self.coeff)
 
  

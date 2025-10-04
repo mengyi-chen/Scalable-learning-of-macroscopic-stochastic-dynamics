@@ -13,6 +13,8 @@ from contextlib import contextmanager
 from glauber2d_ising import Glauber2DIsing
 import seaborn as sns
 import yaml
+from utils.utils import glauber_continuous_Ising
+
 # Load parameters from YAML configuration file
 with open('../config/config.yaml', 'r') as file:
     params = yaml.safe_load(file)
@@ -28,6 +30,9 @@ def args_parser():
     parser.add_argument('--n_proc', type=int, default=params['n_proc'], help="Number of processors for multiprocessing")
     parser.add_argument('--mag', type=float, default=None, help="Target magnetization")
     parser.add_argument('--data_mode', type=str, choices=['train', 'val', 'test'], default='train', help="Mode of the data: train, val, or test")
+    # parser.add_argument('--glauber_dynamics', type=str, choices=['continuous', 'discrete'], default='continuous', help="Type of Glauber dynamics")
+    parser.add_argument('--gpu_idx', type=int, default=params['gpu_idx'], help="GPU index to use")
+    parser.add_argument('--save_interval', type=int, default=params['save_interval'], help="Interval of saving the microscopic configuration")
     args = parser.parse_args()
     return args
 
@@ -105,28 +110,6 @@ if __name__ == "__main__":
     config_time = torch.tensor(config_time, dtype=torch.int8)
     print('config_time shape:', config_time.shape)
 
-    X0 = config_time
-    
-    save_name = {'train': 'X0.pt', 'val': 'X0_val.pt', 'test': 'X0_test.pt'}
-    torch.save(X0, os.path.join(rootpath, save_name[args.data_mode]))
-    np.save(os.path.join(rootpath, 'kmc_times.npy'), kmc_times)
-
-    if args.data_mode == 'val':
-        X0_val = X0
-        X1_val = []
-        time_step_val = []
-        for i in tqdm(range(X0_val.shape[0])):
-            tra = X0_val[i].clone() # [B, L, L]
-            tra_dt, glauber_time = glauber_continuous_Ising(tra.clone(), 1.0 / args.T, args.h)
-            X1_val.append(tra_dt)
-            time_step_val.append(glauber_time)
-
-        X1_val = torch.stack(X1_val)
-        time_step_val = torch.stack(time_step_val)
-
-        torch.save(X1_val, os.path.join(rootpath, f'X1_val.pt'))
-        torch.save(time_step_val, os.path.join(rootpath, f'time_step_val.pt'))
-
     # ========= Visualization =========
     Ms_time = np.array(Ms_time, dtype=np.float32)
     fig = plt.figure(figsize=(12, 3))
@@ -169,3 +152,28 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.savefig(plot_name)
     plt.close()  # Close the figure to free memory
+
+    # ========= save data =========
+    X0 = config_time
+    
+    if args.data_mode == 'val':
+        device = torch.device(f'cuda:{args.gpu_idx}' if torch.cuda.is_available() else 'cpu')
+        save_num_run = int(0.2 * args.num_run)
+        X0 = X0[:save_num_run]
+        X0_val = X0.to(device)
+        X1_val = []
+        time_step_val = []
+        for i in tqdm(range(X0_val.shape[0])):
+            tra = X0_val[i].clone() # [B, L, L]
+            tra_dt, glauber_time = glauber_continuous_Ising(tra.clone(), 1.0 / args.T, args.h)
+            X1_val.append(tra_dt)
+            time_step_val.append(glauber_time)
+
+        X1_val = torch.stack(X1_val)
+        time_step_val = torch.stack(time_step_val)
+
+        torch.save(X1_val.detach().cpu(), os.path.join(rootpath, f'X1_val.pt'))
+        torch.save(time_step_val.detach().cpu(), os.path.join(rootpath, f'time_step_val.pt'))
+    
+    save_name = {'train': 'X0.pt', 'val': 'X0_val.pt', 'test': 'X0_test.pt'}
+    torch.save(X0, os.path.join(rootpath, save_name[args.data_mode]))

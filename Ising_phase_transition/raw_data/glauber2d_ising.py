@@ -36,6 +36,71 @@ def _glauber_discrete(spin, L, beta, h=0):
             if np.random.rand() < prob:
                 spin[x, y] *= -1  # Flip the spin
 
+# @numba.jit(nopython=True)
+# def _glauber_continuous(spin, L, beta, h=0):
+#     """Perform one sweep of Continuous-time Glauber dynamics for the Ising model.
+
+#     Args:
+#         spin (numpy.ndarray): 2D array of shape [L, L] with values -1 or +1.
+#         L (int): Length of the lattice.
+#         beta (float): Inverse temperature (1/k_B T).
+#         h (float, optional): External magnetic field strength. Defaults to 0.0. 
+
+#     Returns:
+#         numpy.ndarray: Updated spin configuration.
+#         float: Time increment for the KMC simulation.
+#     """
+#     glauber_time = 0.0
+#     rates = np.empty((L, L))
+
+#     # Precompute rates for all spins
+#     for x in range(L):
+#         for y in range(L):
+#             s = spin[x, y]
+#             neighbors = (
+#                 spin[(x - 1) % L, y] +
+#                 spin[(x + 1) % L, y] +
+#                 spin[x, (y - 1) % L] +
+#                 spin[x, (y + 1) % L]
+#             )
+#             dH = 2 * s * neighbors + 2 * h * s
+#             rates[x, y] = 1.0 / (1.0 + np.exp(beta * dH))
+
+#     for _ in range(L * L):
+#         rates_flat = rates.ravel()
+#         total_rate = np.sum(rates_flat)
+#         prob = rates_flat / total_rate
+#         cum_probs = np.cumsum(prob)
+        
+#         # Select a spin to flip based on rates
+#         r = np.random.rand()
+#         selected_flat_idx = np.searchsorted(cum_probs, r)
+#         selected_flat_idx = min(selected_flat_idx, L * L - 1)
+#         x, y = divmod(selected_flat_idx, L)
+
+#         # Flip the selected spin
+#         spin[x, y] *= -1
+
+#         # Update time
+#         jumping_time = -np.log(np.random.rand()) / total_rate
+#         glauber_time += jumping_time
+
+#         # Update rates for the flipped spin and its neighbors
+#         for dx, dy in [(0,0), (-1,0), (1,0), (0,-1), (0,1)]:
+#             i = (x + dx) % L
+#             j = (y + dy) % L
+#             s = spin[i, j]
+#             neighbors = (
+#                 spin[(i - 1) % L, j] +
+#                 spin[(i + 1) % L, j] +
+#                 spin[i, (j - 1) % L] +
+#                 spin[i, (j + 1) % L]
+#             )
+#             dH = 2 * s * neighbors + 2 * h * s
+#             rates[i, j] = 1.0 / (1.0 + np.exp(beta * dH))
+
+#     return spin, glauber_time
+
 
 class Glauber2DIsing:
     """Glauber dynamics for 2D Ising model with periodic boundary conditions.

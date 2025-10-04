@@ -7,3 +7,10 @@ seed: 0
 num_run: 50
 n_proc: 50
 data_mode: train
+patch_L: 16
+N_target_train: 400000
+batch_size: 5000
+gpu_idx: 6
+macro_dim: 2
+closure_dim: 2
+n_dim: 4
